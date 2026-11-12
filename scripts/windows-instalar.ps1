@@ -1,0 +1,147 @@
+# Instalador do Treino do Dia no Windows (computador como servidor; celular e navegador como espelho).
+# Uso (PowerShell, sem privilégios de administrador):
+#   irm https://raw.githubusercontent.com/Luizam0rim23/Academia/main/scripts/windows-instalar.ps1 | iex
+# Pode ser executado novamente para atualizar: preserva configuração (.env) e dados.
+
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+$Repo = 'Luizam0rim23/Academia'
+$Base = Join-Path $env:USERPROFILE 'TreinoDoDia'
+$App = Join-Path $Base 'app'
+$Porta = 3000
+$Maquina = $env:COMPUTERNAME.ToLower()
+
+function Etapa([string]$texto) { Write-Host "`n== $texto" -ForegroundColor Cyan }
+function Atualizar-Path {
+  $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+}
+function Definir-Variavel([string]$arquivo, [string]$chave, [string]$valor) {
+  $linhas = @(Get-Content -LiteralPath $arquivo -Encoding UTF8)
+  $achou = $false
+  for ($i = 0; $i -lt $linhas.Count; $i++) {
+    if ($linhas[$i] -match "^\s*$chave\s*=") { $linhas[$i] = "$chave=$valor"; $achou = $true }
+  }
+  if (-not $achou) { $linhas += "$chave=$valor" }
+  [IO.File]::WriteAllLines($arquivo, [string[]]$linhas)
+}
+function Pasta-GoogleDrive {
+  $candidatos = @()
+  foreach ($d in (Get-PSDrive -PSProvider FileSystem)) {
+    foreach ($n in @('Meu Drive', 'My Drive')) { $candidatos += (Join-Path $d.Root $n) }
+  }
+  $candidatos += @((Join-Path $env:USERPROFILE 'Google Drive'), (Join-Path $env:USERPROFILE 'Meu Drive'), (Join-Path $env:USERPROFILE 'My Drive'))
+  foreach ($c in $candidatos) { if (Test-Path -LiteralPath $c) { return $c } }
+  return $null
+}
+
+Etapa '1/6 Node.js'
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+  if (Get-Command winget -ErrorAction SilentlyContinue) {
+    winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements --silent
+    Atualizar-Path
+  }
+  if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+    Start-Process 'https://nodejs.org/pt'
+    throw 'Instale o Node.js (versão LTS) pelo site que foi aberto e execute este comando novamente.'
+  }
+}
+$Node = (Get-Command node).Source
+Write-Host "Node.js: $(& $Node --version)"
+
+Etapa '2/6 Encerrando versão em execução (se houver)'
+Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+  Where-Object { $_.CommandLine -and $_.CommandLine -like "*$App*server.js*" } |
+  ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null; Write-Host "Processo $($_.ProcessId) encerrado." }
+
+Etapa '3/6 Baixando o aplicativo'
+$tmp = Join-Path $env:TEMP ('treino-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $tmp | Out-Null
+$zip = Join-Path $tmp 'app.zip'
+Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/$Repo/archive/refs/heads/main.zip" -OutFile $zip
+Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
+$origem = Get-ChildItem -LiteralPath $tmp -Directory | Select-Object -First 1
+New-Item -ItemType Directory -Force -Path $App | Out-Null
+Copy-Item -Path (Join-Path $origem.FullName '*') -Destination $App -Recurse -Force
+Remove-Item -LiteralPath $tmp -Recurse -Force
+New-Item -ItemType Directory -Force -Path (Join-Path $App 'data') | Out-Null
+Write-Host "Aplicativo em $App"
+
+Etapa '4/6 Configuração'
+$EnvFile = Join-Path $App '.env'
+if (Test-Path -LiteralPath $EnvFile) {
+  Write-Host 'Configuração existente preservada.'
+} else {
+  $seg = Read-Host 'Crie uma senha de acesso ao aplicativo (mínimo 8 caracteres)' -AsSecureString
+  $senha = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($seg))
+  if ($senha.Length -lt 8) { throw 'A senha deve ter ao menos 8 caracteres. Execute o comando novamente.' }
+  $bytes = New-Object byte[] 32
+  [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+  $token = -join ($bytes | ForEach-Object { $_.ToString('x2') })
+  [IO.File]::WriteAllLines($EnvFile, [string[]]@(
+    'HOST=0.0.0.0',
+    "PORT=$Porta",
+    "BASE_URL=http://localhost:$Porta",
+    "APP_PASSWORD=$senha",
+    "HEALTH_WEBHOOK_TOKEN=$token",
+    "WEBHOOK_URL=http://${Maquina}:$Porta/api/saude/webhook",
+    'RESUMO_DIR='
+  ))
+  Write-Host 'Configuração criada.'
+}
+# Pasta do Google Drive para o resumo (lido pelo Claude via conector do Google Drive).
+$drive = Pasta-GoogleDrive
+if ($drive) {
+  $destino = Join-Path $drive 'Treino do Dia'
+  Definir-Variavel $EnvFile 'RESUMO_DIR' $destino
+  Write-Host "Resumo diário será gravado em: $destino"
+} else {
+  Write-Warning 'Google Drive para computador não encontrado. Instale-o (google.com/drive/download), faça login e execute este comando novamente para ativar o resumo para o Claude.'
+}
+
+Etapa '5/6 Início automático, firewall e Tailscale'
+$Log = Join-Path $App 'data\servidor.log'
+$alvo = 'cmd /c ""' + $Node + '" "' + (Join-Path $App 'server.js') + '" >> "' + $Log + '" 2>&1"'
+$Vbs = Join-Path ([Environment]::GetFolderPath('Startup')) 'TreinoDoDia.vbs'
+Set-Content -LiteralPath $Vbs -Encoding Unicode -Value ('CreateObject("WScript.Shell").Run "' + $alvo.Replace('"', '""') + '", 0, False')
+Write-Host 'Início automático configurado (ao entrar no Windows).'
+
+$regra = "Treino do Dia (porta $Porta)"
+if (-not (Get-NetFirewallRule -DisplayName $regra -ErrorAction SilentlyContinue)) {
+  Write-Host 'Liberando a porta no firewall apenas para a rede local e o Tailscale (confirme a janela do Windows).'
+  $cmd = "New-NetFirewallRule -DisplayName '$regra' -Direction Inbound -Protocol TCP -LocalPort $Porta -Action Allow -Profile Any -RemoteAddress 100.64.0.0/10,LocalSubnet | Out-Null"
+  try { Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile', '-Command', $cmd }
+  catch { Write-Warning 'Regra de firewall não criada. Se o Windows perguntar sobre o Node.js, permita em redes privadas e públicas.' }
+}
+
+if (-not (Get-Command tailscale -ErrorAction SilentlyContinue) -and -not (Test-Path 'C:\Program Files\Tailscale\tailscale.exe')) {
+  if (Get-Command winget -ErrorAction SilentlyContinue) {
+    Write-Host 'Instalando o Tailscale (rede privada para acessar de qualquer lugar)...'
+    winget install -e --id Tailscale.Tailscale --accept-source-agreements --accept-package-agreements --silent
+  } else {
+    Start-Process 'https://tailscale.com/download/windows'
+  }
+}
+
+Etapa '6/6 Iniciando'
+Start-Process -FilePath 'wscript.exe' -ArgumentList ('"' + $Vbs + '"')
+Start-Sleep -Seconds 3
+$ok = $false
+try { $ok = (Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:$Porta/healthz" -TimeoutSec 5).StatusCode -eq 200 } catch { }
+if ($ok) { Write-Host 'Aplicativo em execução.' -ForegroundColor Green } else { Write-Warning "O aplicativo não respondeu. Veja o registro: $Log" }
+Start-Process "http://localhost:$Porta"
+
+Write-Host @"
+
+Instalação concluída.
+- Neste computador:          http://localhost:$Porta
+- No celular (via Tailscale): http://${Maquina}:$Porta
+- App de sono (destino):     http://${Maquina}:$Porta/api/saude/webhook  (segredo: botão Copiar segredo na página)
+- Atualizar:                 execute novamente o mesmo comando de instalação
+- Registro (log):            $Log
+
+Pendências:
+1. Abra o Tailscale neste computador e no celular e entre com a MESMA conta.
+2. Configure o Windows para não suspender quando ligado na tomada (Configurações > Sistema > Energia).
+"@

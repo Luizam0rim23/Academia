@@ -35,6 +35,10 @@ module.exports = {
   SESSION_SECRET: process.env.SESSION_SECRET || '',
   CRON_SECRET: process.env.CRON_SECRET || '',
   HEALTH_WEBHOOK_TOKEN: process.env.HEALTH_WEBHOOK_TOKEN || '',
+  // Pasta onde o resumo diário é gravado (ex.: pasta do Google Drive para computador).
+  RESUMO_DIR: process.env.RESUMO_DIR || '',
+  // Endereço que o app do celular deve usar para enviar os dados de saúde (ex.: nome da máquina no Tailscale).
+  WEBHOOK_URL: process.env.WEBHOOK_URL || '',
   TRUST_PROXY: process.env.TRUST_PROXY === '1',
   DATA_DIR: process.env.DATA_DIR || path.join(__dirname, '..', 'data'),
 };

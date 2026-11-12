@@ -48,6 +48,10 @@
       <button type="submit" class="botao strava">Salvar e conectar com Strava</button>
     </form>
     <a id="btn-conectar" class="botao strava" href="/auth/strava">Conectar com Strava</a>
+    <div class="migracao">
+      <p class="pequeno sutil">Já usa o aplicativo em outro aparelho? Importe o backup exportado por ele (inclui a conexão com o Strava, o histórico de sono e as configurações).</p>
+      <label class="botao">Importar backup<input type="file" accept="application/json,.json" class="arquivo-backup" hidden></label>
+    </div>
   </section>
 
   <div id="painel" hidden>
@@ -196,6 +200,11 @@
           </label>
           <div class="form-acoes">
             <button type="submit" class="botao primario">Salvar configurações</button>
+          </div>
+          <div class="form-acoes migracao">
+            <a class="botao" href="/api/exportar">Exportar dados (backup)</a>
+            <label class="botao">Importar backup<input type="file" accept="application/json,.json" class="arquivo-backup" hidden></label>
+            <span class="sutil pequeno">Use para copiar tudo para outro aparelho (ex.: do celular para o computador). Após migrar, desligue o aplicativo no aparelho antigo.</span>
           </div>
         </form>
       </details>

@@ -60,6 +60,8 @@ cp .env.example .env
 | `HEALTH_WEBHOOK_TOKEN` | Opcional | Habilita o recebimento de dados de saúde do celular (seção 6). Mínimo de 24 caracteres aleatórios. |
 | `SESSION_SECRET` | Opcional | Chave de assinatura da sessão (gerada automaticamente se ausente). |
 | `CRON_SECRET` | Opcional | Habilita `/cron/sync` para agendadores externos. |
+| `RESUMO_DIR` | Opcional | Pasta onde o resumo diário (`resumo-treino.txt` e `dados-treino.json`) é gravado, por exemplo dentro do Google Drive. |
+| `WEBHOOK_URL` | Opcional | Endereço exibido para o app de envio de saúde (ex.: `http://nome-do-pc:3000/api/saude/webhook`). |
 
 ## 4. Publicação
 
@@ -151,6 +153,34 @@ Comandos disponíveis no Termux:
 | `treino atualizar` | Baixa a versão mais recente e reinicia |
 
 Cópia de segurança: os dados ficam em `~/academia/data`. Para guardar uma cópia na memória do celular, executar uma vez `termux-setup-storage` e depois `cp -r ~/academia/data ~/storage/downloads/academia-backup`. Mesmo sem cópia, o histórico do Strava é recuperável (nova sincronização de 120 dias); perdem-se apenas configurações, marcações de foco e histórico de sono.
+
+### Opção E — Computador Windows como servidor, celular e navegador como espelho (gratuita)
+
+| Componente | Função |
+|---|---|
+| Computador Windows (ligado) | Executa o aplicativo, sincroniza o Strava e recebe os dados de saúde |
+| Tailscale (gratuito, no PC e no celular) | Rede privada: acesso ao site e envio do sono de qualquer lugar, sem expor nada na internet |
+| Celular | Apenas o app de envio (Life Dashboard Companion) e o navegador como espelho |
+| Google Drive para computador | Pasta `Treino do Dia` com `resumo-treino.txt` e `dados-treino.json`, atualizados automaticamente, que o Claude lê pelo conector do Google Drive |
+
+Passo a passo:
+
+1. No PowerShell do computador (sem administrador), executar:
+   ```powershell
+   irm https://raw.githubusercontent.com/Luizam0rim23/Academia/main/scripts/windows-instalar.ps1 | iex
+   ```
+   O instalador instala o Node.js e o Tailscale (via winget), baixa o aplicativo, pede uma senha de acesso, configura o início automático, libera a porta 3000 no firewall apenas para a rede local e o Tailscale, detecta a pasta do Google Drive e abre o aplicativo.
+2. Entrar no Tailscale com a mesma conta no computador e no celular. Conferir no app do Tailscale o nome do computador (normalmente o nome do Windows em minúsculas).
+3. Migrar os dados do celular: na página do celular, **Configurações → Exportar dados (backup)**; no computador, **Importar backup** (na primeira tela ou em Configurações). A conexão com o Strava é transferida sem nova autorização.
+4. Desativar o servidor do celular (Termux), para evitar duas sincronizações com o Strava:
+   ```bash
+   treino parar; sed -i '/treino-do-dia/,+1d' ~/.bashrc; rm -f ~/.termux/boot/academia
+   ```
+5. No Life Dashboard Companion, alterar o destino para `http://NOME-DO-PC:3000/api/saude/webhook` e colar o novo segredo (botões **Copiar endereço** e **Copiar segredo** na página aberta pelo celular via Tailscale).
+6. No celular, abrir `http://NOME-DO-PC:3000`, entrar com a senha e adicionar à tela inicial.
+7. Windows: Configurações → Sistema → Energia → não suspender quando ligado na tomada.
+
+Atualização: executar novamente o comando do passo 1 (configuração e dados são preservados).
 
 ## 5. Primeiro uso
 

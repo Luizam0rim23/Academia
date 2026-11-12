@@ -128,6 +128,9 @@ p { margin: 0 0 10px; }
 .erro { color: var(--risco); }
 
 /* ---------- conectar */
+.migracao { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--borda); }
+.migracao p { margin: 0; flex-basis: 100%; }
+.migracao label.botao { cursor: pointer; }
 .form-strava-app { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
 .form-strava-app label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--texto-2); }
 .copiar { display: flex; gap: 8px; align-items: center; margin-top: 6px; }

@@ -20,8 +20,7 @@ if (!env.DEMO) {
   const faltando = [];
   // Senha dispensável apenas quando o servidor aceita conexões somente do próprio aparelho.
   if (!env.APP_PASSWORD && !env.SOMENTE_LOCAL) faltando.push('APP_PASSWORD');
-  // No modo local, as credenciais do Strava podem ser cadastradas pela própria página.
-  if (!strava.configurado() && !env.SOMENTE_LOCAL) faltando.push('STRAVA_CLIENT_ID', 'STRAVA_CLIENT_SECRET');
+  // As credenciais do Strava podem vir do .env, do cadastro na página ou de um backup importado.
   if (faltando.length) {
     console.error(`Configuração incompleta. Defina as variáveis: ${faltando.join(', ')} (veja .env.example).`);
     process.exit(1);
@@ -123,9 +122,9 @@ function montarPainel() {
     config,
     saudeIntegracao: {
       webhookAtivo: Boolean(env.HEALTH_WEBHOOK_TOKEN),
-      url: env.SOMENTE_LOCAL ? `http://127.0.0.1:${env.PORT}/api/saude/webhook` : `${env.BASE_URL}/api/saude/webhook`,
-      // O segredo só é exibido no modo local (acesso restrito ao próprio aparelho), para facilitar a cópia.
-      token: env.SOMENTE_LOCAL && env.HEALTH_WEBHOOK_TOKEN ? env.HEALTH_WEBHOOK_TOKEN : undefined,
+      url: env.SOMENTE_LOCAL ? `http://127.0.0.1:${env.PORT}/api/saude/webhook` : (env.WEBHOOK_URL || `${env.BASE_URL}/api/saude/webhook`),
+      // O segredo é exibido (para cópia) no modo local ou quando a página exige senha; o painel só é servido a sessões válidas.
+      token: (env.SOMENTE_LOCAL || auth.protecaoAtiva()) && env.HEALTH_WEBHOOK_TOKEN ? env.HEALTH_WEBHOOK_TOKEN : undefined,
       ultimoRecebimento: saude.ler().ultimoRecebimento,
       origem: saude.ler().origem,
     },
@@ -142,6 +141,36 @@ function montarPainel() {
   painel.tecnico = tecnico.analisar(painel, dadosSaude, config);
   return { ...base, ...painel };
 }
+
+// ------------------------------------------------------------- espelho (resumo em pasta sincronizada)
+let agendaEspelho = null;
+function atualizarEspelho(atrasoMs = 20000) {
+  if (!env.RESUMO_DIR) return;
+  clearTimeout(agendaEspelho);
+  agendaEspelho = setTimeout(() => {
+    try {
+      const p = montarPainel();
+      if (!p.tecnico) return;
+      fs.mkdirSync(env.RESUMO_DIR, { recursive: true });
+      const carimbo = new Date().toLocaleString('pt-BR', { timeZone: p.config.timezone });
+      // Gravação direta (sem renomear): a pasta pode estar em uso pelo cliente de sincronização.
+      fs.writeFileSync(path.join(env.RESUMO_DIR, 'resumo-treino.txt'), `${p.tecnico.resumoTexto}\n\nAtualizado em ${carimbo}.\n`);
+      const dados = {
+        atualizadoEm: new Date().toISOString(), hoje: p.hoje, config: p.config, plano: p.plano, projecao: p.projecao,
+        metricas: p.metricas, recuperacao: p.recuperacao, analise: { achados: p.tecnico.achados, indicadores: p.tecnico.indicadores },
+        atividades: p.recentes,
+      };
+      fs.writeFileSync(path.join(env.RESUMO_DIR, 'dados-treino.json'), JSON.stringify(dados, null, 1));
+      console.log(`[espelho] resumo gravado em ${env.RESUMO_DIR}`);
+    } catch (e) {
+      console.error(`[espelho] falha ao gravar resumo: ${e.message}`);
+    }
+  }, atrasoMs);
+}
+sync.definirAoConcluir(() => atualizarEspelho(1000));
+
+// ------------------------------------------------------------- exportação / importação (migração entre aparelhos)
+const ARQUIVOS_MIGRAVEIS = ['atividades', 'tokens', 'strava-app', 'saude', 'config', 'marcacoes', 'estado'];
 
 // ------------------------------------------------------------- rotas
 async function rotear(req, res) {
@@ -198,6 +227,7 @@ async function rotear(req, res) {
       return json(res, 400, { erro: 'JSON inválido.' });
     }
     const contagem = saude.registrarWebhook(corpo);
+    atualizarEspelho();
     console.log(`[saude] recebidos: ${contagem.sono} sessões de sono, ${contagem.fcRepouso} FC repouso, ${contagem.vfc} VFC`);
     return json(res, 200, { ok: true, ...contagem });
   }
@@ -251,6 +281,7 @@ async function rotear(req, res) {
 
   if (metodo === 'PUT' && caminho === '/api/config') {
     settings.atualizar(await lerJson(req));
+    atualizarEspelho();
     return json(res, 200, montarPainel());
   }
 
@@ -262,6 +293,7 @@ async function rotear(req, res) {
     else if (FOCOS_MARCAVEIS.includes(foco)) marcacoes[id] = foco;
     else return json(res, 400, { erro: 'Foco inválido.' });
     store.gravar('marcacoes', marcacoes);
+    atualizarEspelho();
     return json(res, 200, montarPainel());
   }
 
@@ -275,6 +307,33 @@ async function rotear(req, res) {
   if (metodo === 'PUT' && caminho === '/api/saude/sono') {
     saude.registrarManual(await lerJson(req));
     return json(res, 200, montarPainel());
+  }
+
+  if (metodo === 'GET' && caminho === '/api/exportar') {
+    const pacote = { formato: 'treino-do-dia/1', exportadoEm: new Date().toISOString(), arquivos: {} };
+    for (const nome of ARQUIVOS_MIGRAVEIS) {
+      const conteudo = store.ler(nome, undefined);
+      if (conteudo !== undefined) pacote.arquivos[nome] = conteudo;
+    }
+    const nomeArquivo = `treino-do-dia-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    return enviar(res, 200, JSON.stringify(pacote), {
+      'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store',
+      'Content-Disposition': `attachment; filename="${nomeArquivo}"`,
+    });
+  }
+
+  if (metodo === 'POST' && caminho === '/api/importar') {
+    const pacote = await lerJson(req, 64 * 1024 * 1024);
+    if (!pacote || pacote.formato !== 'treino-do-dia/1' || typeof pacote.arquivos !== 'object') return json(res, 400, { erro: 'Arquivo de backup inválido.' });
+    const importados = [];
+    for (const nome of ARQUIVOS_MIGRAVEIS) {
+      if (pacote.arquivos[nome] === undefined) continue;
+      store.gravar(nome, pacote.arquivos[nome]);
+      importados.push(nome);
+    }
+    console.log(`[importacao] ${importados.join(', ')}`);
+    atualizarEspelho(1000);
+    return json(res, 200, { ok: true, importados, painel: montarPainel() });
   }
 
   if (metodo === 'POST' && caminho === '/api/desconectar') {
@@ -301,6 +360,9 @@ servidor.listen(env.PORT, env.HOST, () => {
   if (env.DEMO && !auth.protecaoAtiva()) console.warn('Atenção: sem APP_PASSWORD, o acesso está aberto (aceitável apenas em demonstração).');
   if (env.DEMO) sync.executar('demonstração');
   sync.iniciarAgenda();
+  atualizarEspelho(5000);
+  // Atualização periódica do espelho (o "hoje" muda à meia-noite mesmo sem novos dados).
+  setInterval(() => atualizarEspelho(1000), 3 * 3600000).unref();
 });
 
 for (const sinal of ['SIGINT', 'SIGTERM']) {

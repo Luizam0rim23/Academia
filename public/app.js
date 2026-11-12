@@ -416,6 +416,20 @@
     } catch (err) { aviso(err.message, true); }
   });
 
+  for (const entrada of document.querySelectorAll('.arquivo-backup')) {
+    entrada.addEventListener('change', async (e) => {
+      const arquivo = e.target.files && e.target.files[0];
+      if (!arquivo) return;
+      if (!confirm('Importar este backup? Os dados atuais deste aparelho serão substituídos pelos do arquivo.')) { e.target.value = ''; return; }
+      try {
+        const r = await api('POST', '/api/importar', JSON.parse(await arquivo.text()));
+        renderizar(r.painel);
+        aviso(`Backup importado (${r.importados.length} conjuntos de dados). Desligue o aplicativo no aparelho antigo para evitar duas sincronizações com o Strava.`);
+      } catch (err) { aviso(`Falha na importação: ${err.message}`, true); }
+      e.target.value = '';
+    });
+  }
+
   $('btn-desconectar').addEventListener('click', async () => {
     if (!confirm('Desconectar a conta do Strava? O acesso será revogado e as atividades armazenadas neste servidor serão apagadas.')) return;
     try { renderizar(await api('POST', '/api/desconectar', {})); aviso('Conta do Strava desconectada.'); } catch (err) { aviso(err.message, true); }

@@ -9,6 +9,8 @@ const demo = require('./demo');
 const { diaLocal, instanteLocal } = require('./coach');
 
 let emAndamento = null;
+let aoConcluir = null;
+const definirAoConcluir = (fn) => { aoConcluir = fn; };
 
 function estado() {
   return store.ler('estado', { ultimaSync: null, resultado: null, erro: null });
@@ -34,6 +36,7 @@ async function executar(origem = 'manual', opcoes = {}) {
       }
       store.gravar('estado', { ultimaSync: new Date().toISOString(), resultado, erro: null, origem });
       console.log(`[sync] ${origem}: ${resultado.lidas} lidas, ${resultado.novas} novas, ${resultado.total} no total (${Date.now() - inicio} ms)`);
+      try { if (aoConcluir) aoConcluir(); } catch (e) { console.error(`[sync] pós-processamento: ${e.message}`); }
       return { ok: true, ...resultado };
     } catch (e) {
       const anterior = estado();
@@ -77,4 +80,4 @@ function iniciarAgenda() {
   setInterval(verificar, 5 * 60000).unref();
 }
 
-module.exports = { executar, estado, conectado, garantirAtualizado, iniciarAgenda };
+module.exports = { definirAoConcluir, executar, estado, conectado, garantirAtualizado, iniciarAgenda };
