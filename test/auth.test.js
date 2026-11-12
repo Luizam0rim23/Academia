@@ -28,3 +28,17 @@ test('webhook de saúde aceita assinatura HMAC-SHA256 (Life Dashboard Companion)
   assert.equal(auth.tokenSaudeValido(req({ 'x-signature': ok }), `${corpo} `), false, 'corpo alterado');
   assert.equal(auth.tokenSaudeValido(req({ 'x-signature': assinar(corpo, 'outra-chave') }), corpo), false);
 });
+
+test('webhook de saúde: assinatura sobre corpo compactado ou descompactado e motivo da recusa', () => {
+  const zlib = require('zlib');
+  const compactado = zlib.gzipSync(Buffer.from(corpo));
+  const sobreDescompactado = assinar(corpo, process.env.HEALTH_WEBHOOK_TOKEN);
+  const sobreCompactado = `sha256=${crypto.createHmac('sha256', process.env.HEALTH_WEBHOOK_TOKEN).update(compactado).digest('hex')}`;
+  assert.equal(auth.verificarSaude(req({ 'x-signature': sobreDescompactado }), [compactado, Buffer.from(corpo)]).ok, true);
+  assert.equal(auth.verificarSaude(req({ 'x-signature': sobreCompactado }), [compactado, Buffer.from(corpo)]).ok, true);
+  const r = auth.verificarSaude(req({ 'x-signature': assinar(corpo, 'outra') }), [Buffer.from(corpo)]);
+  assert.equal(r.ok, false);
+  assert.match(r.motivo, /segredo/);
+  assert.doesNotMatch(r.motivo, new RegExp(process.env.HEALTH_WEBHOOK_TOKEN));
+  assert.match(auth.verificarSaude(req({}), [Buffer.from(corpo)]).motivo, /sem X-Signature/);
+});

@@ -3,6 +3,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const env = require('./src/env');
 const store = require('./src/store');
 const settings = require('./src/settings');
@@ -58,6 +59,20 @@ function arquivo(res, nome, tipo) {
   fs.readFile(path.join(PUBLICO, nome), (erro, dados) => {
     if (erro) return enviar(res, 404, 'Não encontrado');
     enviar(res, 200, dados, { 'Content-Type': tipo, 'Cache-Control': 'no-cache' });
+  });
+}
+
+function lerCorpoBuffer(req, limite) {
+  return new Promise((resolve, reject) => {
+    let tamanho = 0;
+    const partes = [];
+    req.on('data', (c) => {
+      tamanho += c.length;
+      if (tamanho > limite) { reject(Object.assign(new Error('Corpo da requisição excede o limite.'), { status: 413 })); req.destroy(); return; }
+      partes.push(c);
+    });
+    req.on('end', () => resolve(Buffer.concat(partes)));
+    req.on('error', reject);
   });
 }
 
@@ -155,10 +170,27 @@ async function rotear(req, res) {
 
   // Recebimento de dados de saúde do celular (Health Connect via Life Dashboard Companion ou HC Webhook).
   if (caminho === '/api/saude/webhook' && metodo === 'POST') {
-    const bruto = await lerCorpo(req, 8 * 1024 * 1024);
-    if (!auth.tokenSaudeValido(req, bruto)) return json(res, 401, { erro: 'Não autorizado.' });
+    const bruto = await lerCorpoBuffer(req, 32 * 1024 * 1024);
+    // Envios grandes podem chegar compactados (gzip/deflate); a assinatura é aceita sobre o corpo bruto ou o descompactado.
+    let texto = bruto;
+    const codificacao = String(req.headers['content-encoding'] || '').toLowerCase();
+    try {
+      if (codificacao.includes('gzip') || (bruto[0] === 0x1f && bruto[1] === 0x8b)) texto = zlib.gunzipSync(bruto, { maxOutputLength: 128 * 1024 * 1024 });
+      else if (codificacao.includes('deflate')) texto = zlib.inflateSync(bruto, { maxOutputLength: 128 * 1024 * 1024 });
+    } catch {
+      console.warn('[saude] 400: corpo compactado inválido');
+      return json(res, 400, { erro: 'Corpo compactado inválido.' });
+    }
+    const verificacao = auth.verificarSaude(req, texto === bruto ? [bruto] : [bruto, texto]);
+    if (!verificacao.ok) {
+      console.warn(`[saude] 401: ${verificacao.motivo} (cabeçalhos recebidos: ${Object.keys(req.headers).join(', ')}; ${bruto.length} bytes${codificacao ? `, ${codificacao}` : ''})`);
+      return json(res, 401, { erro: 'Não autorizado.', motivo: verificacao.motivo });
+    }
     let corpo;
-    try { corpo = JSON.parse(bruto || '{}'); } catch { return json(res, 400, { erro: 'JSON inválido.' }); }
+    try { corpo = JSON.parse(texto.toString('utf8') || '{}'); } catch {
+      console.warn('[saude] 400: JSON inválido');
+      return json(res, 400, { erro: 'JSON inválido.' });
+    }
     const contagem = saude.registrarWebhook(corpo);
     console.log(`[saude] recebidos: ${contagem.sono} sessões de sono, ${contagem.fcRepouso} FC repouso, ${contagem.vfc} VFC`);
     return json(res, 200, { ok: true, ...contagem });

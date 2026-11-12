@@ -108,20 +108,32 @@ function segredoCronValido(req, url) {
 
 // Aceita token Bearer (HC Webhook e outros) ou assinatura HMAC-SHA256 do corpo
 // no cabeçalho X-Signature: sha256=<hex> (Life Dashboard Companion), usando o mesmo segredo.
-function tokenSaudeValido(req, corpoBruto = '') {
+// corpos: corpo bruto (Buffer ou texto) ou lista de candidatos (ex.: compactado e descompactado).
+// Retorna { ok, motivo } para registro de diagnóstico (nunca inclui valores secretos).
+function verificarSaude(req, corpos = '') {
   const segredoSaude = env.HEALTH_WEBHOOK_TOKEN.trim();
-  if (!segredoSaude) return false;
-  const assinatura = String(req.headers['x-signature'] || '');
+  if (!segredoSaude) return { ok: false, motivo: 'HEALTH_WEBHOOK_TOKEN não configurado no servidor' };
+  const assinatura = String(req.headers['x-signature'] || '').trim().toLowerCase();
   if (assinatura) {
-    const esperado = `sha256=${crypto.createHmac('sha256', segredoSaude).update(corpoBruto).digest('hex')}`;
-    return crypto.timingSafeEqual(sha(assinatura.toLowerCase()), sha(esperado));
+    if (!/^sha256=[0-9a-f]{64}$/.test(assinatura)) return { ok: false, motivo: 'cabeçalho X-Signature em formato inesperado' };
+    const confere = (Array.isArray(corpos) ? corpos : [corpos]).filter((c) => c !== undefined && c !== null).some((c) => {
+      const esperado = `sha256=${crypto.createHmac('sha256', segredoSaude).update(c).digest('hex')}`;
+      return crypto.timingSafeEqual(sha(assinatura), sha(esperado));
+    });
+    return confere ? { ok: true } : { ok: false, motivo: 'assinatura HMAC não confere: o segredo informado no app de envio é diferente do HEALTH_WEBHOOK_TOKEN (copie novamente pelo botão Copiar segredo)' };
   }
   const informado = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.headers['x-api-key'] || '');
-  return crypto.timingSafeEqual(sha(informado.trim()), sha(segredoSaude));
+  if (!informado) return { ok: false, motivo: 'requisição sem X-Signature nem Authorization: informe o segredo de assinatura no app de envio' };
+  return crypto.timingSafeEqual(sha(informado.trim()), sha(segredoSaude))
+    ? { ok: true }
+    : { ok: false, motivo: 'token Bearer não confere com HEALTH_WEBHOOK_TOKEN' };
 }
+
+const tokenSaudeValido = (req, corpos = '') => verificarSaude(req, corpos).ok;
 
 module.exports = {
   tokenSaudeValido,
+  verificarSaude,
   protecaoAtiva, senhaCorreta, cookieSessao, cookieEncerrarSessao, sessaoValida,
   bloqueado, registrarFalha, limparFalhas,
   novoEstadoOAuth, estadoOAuthValido, cookieLimparOAuth, segredoCronValido,
