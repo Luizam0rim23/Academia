@@ -91,8 +91,11 @@ if (Test-Path -LiteralPath $EnvFile) {
   Write-Host 'Configuração criada.'
 }
 # Pasta do Google Drive para o resumo (lido pelo Claude via conector do Google Drive).
+$atual = (Get-Content -LiteralPath $EnvFile -Encoding UTF8 | Where-Object { $_ -match '^RESUMO_DIR=(.+)$' } | ForEach-Object { $Matches[1].Trim() } | Select-Object -First 1)
 $drive = Pasta-GoogleDrive
-if ($drive) {
+if ($atual -and (Test-Path -LiteralPath (Split-Path -Parent $atual))) {
+  Write-Host "Resumo diário mantido em: $atual"
+} elseif ($drive) {
   $destino = Join-Path $drive 'Treino do Dia'
   Definir-Variavel $EnvFile 'RESUMO_DIR' $destino
   Write-Host "Resumo diário será gravado em: $destino"
