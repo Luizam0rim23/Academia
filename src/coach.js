@@ -333,7 +333,7 @@ const AQUECIMENTO = {
 const OBS_OBJETIVO = {
   hipertrofia: 'Progrida a carga quando atingir o topo da faixa de repetições em todas as séries com o RIR indicado.',
   forca: 'Nos compostos, acrescente 2,5 kg quando completar todas as séries e repetições com o RIR indicado.',
-  corrida: 'Mantenha os treinos pesados de pernas a pelo menos 48 h de treinos longos ou intervalados de corrida.',
+  corrida: 'Mantenha os treinos pesados de pernas a pelo menos 48 h de pedais ou corridas longas ou intervaladas; no mesmo dia, faça a academia depois do treino aeróbico leve.',
   saude: 'Priorize execução e amplitude; aumente a carga de forma gradual, sem chegar à falha.',
 };
 

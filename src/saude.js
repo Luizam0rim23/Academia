@@ -313,7 +313,11 @@ function avaliar(dados, hoje, config) {
   let reducaoSono = 0;
   if (noite) {
     const h = noite.dormidoSeg / 3600;
-    if (h < 5) {
+    if (h < 3 && noite.origem === 'automatico') {
+      reducaoSono = 1;
+      motivos.push(`Sono registrado pelo relógio: ${fmtH(noite.dormidoSeg)}, valor improvável para uma noite completa: intensidade reduzida por precaução.`);
+      alertas.push(`Sono registrado de apenas ${fmtH(noite.dormidoSeg)}: pode ser registro incompleto do relógio. Se dormiu mais, informe as horas no registro manual do card Sono e recuperação para recalcular o plano.`);
+    } else if (h < 5) {
       reducaoSono = 1;
       motivos.push(`Sono da última noite: ${fmtH(noite.dormidoSeg)} (abaixo de 5 h): intensidade reduzida em um nível.`);
       alertas.push('Sono muito curto: evite cargas máximas e exercícios técnicos complexos hoje.');

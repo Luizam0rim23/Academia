@@ -9,7 +9,7 @@ const somarDias = (dia, n) => new Date(Date.parse(`${dia}T00:00:00Z`) + n * DIA_
 const fmt = (n, c = 1) => Number(n).toFixed(c).replace('.', ',');
 const fmtH = (seg) => { const m = Math.round(seg / 60); return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`; };
 
-const OBJETIVOS = { hipertrofia: 'hipertrofia', forca: 'força', corrida: 'suporte à corrida', saude: 'saúde e condicionamento' };
+const OBJETIVOS = { hipertrofia: 'hipertrofia', forca: 'força', corrida: 'endurance (ciclismo/corrida)', saude: 'saúde e condicionamento' };
 
 // Série temporal { iso: valor } → tendência linear nos últimos `dias` (kg/semana e % do valor atual por semana).
 function tendencia(serie, agora, dias = 42) {
@@ -155,6 +155,13 @@ function analisar(painel, saude, config, agora = Date.now()) {
       const spo2 = ultimas.length >= 3 ? mediana(ultimas) : NaN;
       if (Number.isFinite(spo2)) indicadores.push({ rotulo: 'SpO2 no sono (7 dias)', valor: `${Math.round(spo2)}%`, sub: spo2 < 94 ? 'abaixo do esperado' : 'normal' });
     }
+  }
+
+  // 10) Qualidade dos dados recebidos do relógio
+  if (saude && saude.ultimoRecebimento) {
+    if (!Object.keys(saude.exercicios || {}).length) add('atencao', 'Treinos do relógio não estão chegando', 'Nenhuma sessão de exercício do Samsung Health foi recebida. Verifique: Conexão Saúde → Permissões de apps → Samsung Health (gravar Exercício) e Life Dashboard Companion (ler Exercício); em seguida reenvie o histórico. Enquanto isso, a frequência de academia aparece subestimada.');
+    const noites = dias ? Object.keys(dias.sono).filter((d) => d > somarDias(hoje, -8)).length : 0;
+    if (noites > 0 && noites < 4) add('atencao', 'Histórico de sono incompleto', `Apenas ${noites} noite(s) recebida(s) nos últimos 7 dias. Use o relógio para dormir e confira a permissão de Sono do Samsung Health na Conexão Saúde.`);
   }
 
   if (!achados.some((a) => a.nivel === 'acao' || a.nivel === 'atencao')) add('positivo', 'Sem pontos de atenção', 'Treino, recuperação e rotina dentro do esperado. Siga o plano do dia.');
