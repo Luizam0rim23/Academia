@@ -134,6 +134,8 @@ function enriquecer(atividades, marcacoes, config) {
     .sort((x, y) => x._inicio - y._inicio);
   let ultimo = null;
   for (const a of lista) {
+    // Sessão genérica do relógio ("outro exercício") marcada pelo usuário com um foco passa a contar como musculação.
+    if (a._cat === 'outro' && marcacoes[String(a.id)] && marcacoes[String(a.id)] !== 'outro' && FOCOS[marcacoes[String(a.id)]]) a._cat = 'forca';
     if (a._cat !== 'forca') continue;
     const marcado = marcacoes[String(a.id)];
     if (marcado && FOCOS[marcado]) { a._foco = marcado; a._origemFoco = 'marcado'; }

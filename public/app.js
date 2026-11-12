@@ -337,7 +337,8 @@
     const origens = { nome: 'pelo nome', inferido: 'inferido pela rotação', marcado: 'marcado manualmente' };
     for (const a of lista) {
       let celulaFoco = el('td', { class: 'sutil vazio' }, '—');
-      if (a.categoria === 'forca') {
+      if (a.categoria === 'forca' || a.categoria === 'outro') {
+        const generica = a.categoria === 'outro';
         const sel = el('select', {
           'aria-label': `Foco de ${a.nome}`,
           onchange: async (e) => {
@@ -347,8 +348,9 @@
               aviso('Foco atualizado. Recomendação recalculada.');
             } catch (err) { aviso(err.message, true); e.target.disabled = false; }
           },
-        }, el('option', { value: '' }, 'Automático'), focos.map((f) => el('option', { value: f.id, selected: a.origemFoco === 'marcado' && a.foco === f.id }, f.nome)));
-        celulaFoco = el('td', { class: 'foco' }, sel, el('span', { class: 'origem' }, `${a.nomeFoco} (${origens[a.origemFoco] || ''})`));
+        }, el('option', { value: '' }, generica ? 'Não é musculação' : 'Automático'),
+        focos.filter((f) => !(generica && f.id === 'outro')).map((f) => el('option', { value: f.id, selected: a.origemFoco === 'marcado' && a.foco === f.id }, generica ? `Musculação: ${f.nome}` : f.nome)));
+        celulaFoco = el('td', { class: 'foco' }, sel, generica ? el('span', { class: 'origem' }, 'Sessão genérica do relógio') : el('span', { class: 'origem' }, `${a.nomeFoco} (${origens[a.origemFoco] || ''})`));
       }
       corpo.append(el('tr', {},
         el('td', {}, `${fmtData(a.data)}${a.hora ? ` ${a.hora}` : ''}`),

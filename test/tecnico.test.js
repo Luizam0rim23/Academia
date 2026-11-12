@@ -83,3 +83,18 @@ test('resumo em texto contém plano, atividades e achados', () => {
   assert.match(p.tecnico.resumoTexto, /Plano de hoje/);
   assert.match(p.tecnico.resumoTexto, /Achados do aplicativo/);
 });
+
+test('sessão genérica do relógio marcada pelo usuário passa a contar como musculação', () => {
+  store.remover('saude');
+  saude.registrarWebhook({ exercise: [{ uuid: 'g1', type: '0', name: 'other_workout', start_time: iso(0, 18), end_time: iso(0, 19), duration_seconds: 3600, source: 'com.sec.android.app.shealth' }] }, AGORA);
+  const dados = saude.ler();
+  const relogio = saude.atividadesDoRelogio(dados, [], TZ);
+  const config = cfg({ split: 'ppl', gymDaysPerWeek: 5 });
+  const sem = construirPainel(relogio, config, {}, AGORA, dados);
+  assert.equal(sem.recentes[0].categoria, 'outro');
+  assert.equal(sem.plano.referencia, 'hoje');
+  const com = construirPainel(relogio, config, { [relogio[0].id]: 'pull' }, AGORA, dados);
+  assert.equal(com.recentes[0].categoria, 'forca');
+  assert.equal(com.recentes[0].foco, 'pull');
+  assert.equal(com.plano.referencia, 'amanha');
+});
