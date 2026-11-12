@@ -226,6 +226,22 @@ p { margin: 0 0 10px; }
 .legenda { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: 0.8rem; color: var(--texto-2); }
 .legenda i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
 
+/* ---------- análise do técnico */
+.achados { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.achado { border-left: 3px solid var(--borda); background: var(--superficie-2); border-radius: 6px; padding: 8px 12px; font-size: 0.92rem; }
+.achado strong { display: block; margin-bottom: 2px; }
+.achado .rotulo-nivel { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-right: 6px; }
+.achado.acao { border-left-color: var(--risco); }
+.achado.acao .rotulo-nivel { color: var(--risco); }
+.achado.atencao { border-left-color: var(--atencao); }
+.achado.atencao .rotulo-nivel { color: var(--atencao); }
+.achado.positivo { border-left-color: var(--sucesso); }
+.achado.positivo .rotulo-nivel { color: var(--sucesso); }
+.achado.info .rotulo-nivel { color: var(--texto-2); }
+.tecnico-acoes { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 14px; }
+.aviso-saude { margin: 10px 0 0; }
+#tecnico-indicadores:empty { display: none; }
+
 /* ---------- sono */
 .grafico-sono { margin-top: 12px; }
 .grafico .barra.sono-ok { fill: var(--barra-forca); }

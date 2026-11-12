@@ -83,6 +83,7 @@
     $('data-hoje').textContent = fmtDataLonga(p.hoje);
     renderizarPlano(p.plano);
     renderizarMotivos(p.plano);
+    renderizarTecnico(p.tecnico);
     renderizarSono(p.recuperacao, p.saudeIntegracao, p.hoje);
     renderizarIndicadores(p.metricas, p.config);
     renderizarProjecao(p.projecao);
@@ -229,6 +230,27 @@
     }
   }
 
+  const NIVEIS = { acao: 'Ação', atencao: 'Atenção', positivo: 'Positivo', info: 'Informação' };
+
+  function renderizarTecnico(t) {
+    const dl = limpar($('tecnico-indicadores'));
+    const ul = limpar($('tecnico-achados'));
+    if (!t) return;
+    for (const i of t.indicadores) dl.append(el('div', { class: 'indicador' }, el('dt', {}, i.rotulo), el('dd', {}, i.valor, el('small', {}, i.sub))));
+    for (const a of t.achados) {
+      ul.append(el('li', { class: `achado ${a.nivel}` }, el('strong', {}, el('span', { class: 'rotulo-nivel' }, NIVEIS[a.nivel] || a.nivel), a.titulo), a.texto));
+    }
+  }
+
+  $('btn-resumo').addEventListener('click', async (e) => {
+    const b = e.currentTarget;
+    const texto = painel && painel.tecnico ? painel.tecnico.resumoTexto : '';
+    if (!texto) return;
+    try { await navigator.clipboard.writeText(texto); b.textContent = 'Resumo copiado'; }
+    catch { window.prompt('Copie o resumo:', texto); }
+    setTimeout(() => { b.textContent = 'Copiar resumo para análise'; }, 2500);
+  });
+
   function linhaCopiar(rotulo, valor) {
     const botao = el('button', { type: 'button', class: 'botao', onclick: async () => {
       try { await navigator.clipboard.writeText(valor); botao.textContent = 'Copiado'; }
@@ -331,7 +353,7 @@
       corpo.append(el('tr', {},
         el('td', {}, `${fmtData(a.data)}${a.hora ? ` ${a.hora}` : ''}`),
         el('td', { class: 'nome' }, a.nome),
-        el('td', {}, a.tipo),
+        el('td', {}, a.tipo, a.fonte && a.fonte !== 'Strava' ? el('span', { class: 'origem' }, a.fonte) : null),
         el('td', { class: 'num' }, `${a.duracaoMin} min`),
         el('td', { class: a.distanciaKm ? 'num' : 'num vazio' }, a.distanciaKm ? `${fmtNum(a.distanciaKm, 1)} km` : '—'),
         el('td', { class: 'num', 'data-rotulo': 'Carga' }, a.carga),

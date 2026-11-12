@@ -215,6 +215,21 @@ Pontos de atenção:
 - O Samsung Health pode levar alguns minutos para repassar à Conexão Saúde a noite sincronizada do relógio. Programe o envio do app ao menos 30 minutos após o horário habitual de acordar.
 - Se a noite não aparecer no card, verificar nesta ordem: Samsung Health (noite registrada) → Conexão Saúde (dados de sono presentes) → app de envio (último envio com sucesso) → card (último recebimento).
 
+### Dados utilizados e análise do técnico
+
+| Dado (Health Connect) | Uso |
+|---|---|
+| Sono (com estágios), FC de repouso, VFC | Ajuste diário de intensidade e recuperação ativa |
+| Frequência respiratória, temperatura da pele, SpO2 (no sono) | Sinais de recuperação incompleta ou início de doença |
+| Sessões de exercício do relógio | Treinos registrados só no Samsung Health entram no plano (sem duplicar o Strava) |
+| Peso, gordura corporal, massa magra (bioimpedância do Watch) | Tendência semanal comparada ao objetivo (ganho, manutenção, recomposição) |
+| Passos (totais diários) | Atividade diária fora do treino |
+| VO2 máx. | Indicador de capacidade aeróbica |
+
+O card **Análise do técnico** prioriza achados em Ação, Atenção, Positivo e Informação, e o botão **Copiar resumo para análise** gera um texto com plano, atividades de 14 dias, sono de 7 noites, indicadores e achados.
+
+No app de envio, em **O que enviar**, manter ativos: Sono, Frequência cardíaca em repouso, Variabilidade da FC, Exercício, Peso, Gordura corporal, Massa magra, Passos, Saturação de oxigênio, Frequência respiratória, Temperatura da pele e VO2 máx. Os demais tipos não são utilizados.
+
 ### Regras de tratamento
 
 | Item | Tratamento |

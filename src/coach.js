@@ -548,11 +548,13 @@ function construirPainel(atividades, config, marcacoes = {}, agora = Date.now(),
       foco: a._foco || null,
       nomeFoco: a._foco ? FOCOS[a._foco].nome : null,
       origemFoco: a._origemFoco || null,
+      fonte: a.fonte || 'Strava',
     }));
 
   const recuperacao = recuperacaoHoje ? { disponivel: recuperacaoHoje.disponivel, ...recuperacaoHoje.resumo } : null;
   delete plano.recuperacao;
-  return { hoje, plano, projecao, metricas, recentes, recuperacao };
+  const recentesForca28 = enriquecer(atividades, marcacoes, config).filter((a) => a._cat === 'forca' && diasEntre(hoje, a._dia) >= 0 && diasEntre(hoje, a._dia) < 28).length;
+  return { hoje, plano, projecao, metricas, recentes, recuperacao, recentesForca28 };
 }
 
 function limparEnriquecimento(a) {

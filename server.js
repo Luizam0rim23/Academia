@@ -12,6 +12,7 @@ const strava = require('./src/strava');
 const sync = require('./src/sync');
 const { construirPainel } = require('./src/coach');
 const saude = require('./src/saude');
+const tecnico = require('./src/tecnico');
 const { FOCOS_MARCAVEIS, FOCOS, NOMES_DIVISAO } = require('./src/exercises');
 
 // ------------------------------------------------------------- validação de inicialização
@@ -134,7 +135,12 @@ function montarPainel() {
     },
   };
   if (!conectado) return base;
-  return { ...base, ...construirPainel(atividades, config, marcacoes, Date.now(), saude.ler()) };
+  const dadosSaude = saude.ler();
+  // Atividades do Strava + sessões do relógio (Samsung Health via Health Connect) sem duplicidade.
+  const todas = [...atividades, ...saude.atividadesDoRelogio(dadosSaude, atividades, config.timezone)];
+  const painel = construirPainel(todas, config, marcacoes, Date.now(), dadosSaude);
+  painel.tecnico = tecnico.analisar(painel, dadosSaude, config);
+  return { ...base, ...painel };
 }
 
 // ------------------------------------------------------------- rotas
@@ -251,7 +257,7 @@ async function rotear(req, res) {
   if (metodo === 'PUT' && caminho === '/api/foco') {
     const { id, foco } = await lerJson(req);
     const marcacoes = store.ler('marcacoes', {});
-    if (!id || typeof id !== 'string' || id.length > 30) return json(res, 400, { erro: 'Atividade inválida.' });
+    if (!id || typeof id !== 'string' || id.length > 40) return json(res, 400, { erro: 'Atividade inválida.' });
     if (foco === null || foco === '') delete marcacoes[id];
     else if (FOCOS_MARCAVEIS.includes(foco)) marcacoes[id] = foco;
     else return json(res, 400, { erro: 'Foco inválido.' });

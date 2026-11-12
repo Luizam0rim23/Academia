@@ -19,18 +19,35 @@ const somarDias = (dia, n) => new Date(Date.parse(`${dia}T00:00:00Z`) + n * DIA_
 
 // ---------------------------------------------------------------- armazenamento
 function vazio() {
-  return { sono: {}, fcRepouso: {}, vfc: {}, manual: {}, ultimoRecebimento: null, origem: null };
+  return {
+    sono: {}, fcRepouso: {}, vfc: {}, manual: {},
+    spo2: {}, respiracao: {}, tempPele: {}, vo2max: {},           // séries por instante (ISO)
+    corpo: { peso: {}, gordura: {}, massaMagra: {}, tmb: {} },     // composição corporal por instante (ISO)
+    diario: {},                                                    // totais diários (passos, distância, calorias)
+    exercicios: {},                                                // sessões de exercício do Health Connect
+    ultimoRecebimento: null, origem: null,
+  };
 }
 
+const RETENCAO_CORPO_DIAS = 400;
+
 function ler() {
-  return { ...vazio(), ...store.ler('saude', {}) };
+  const base = vazio();
+  const salvo = store.ler('saude', {});
+  return { ...base, ...salvo, corpo: { ...base.corpo, ...(salvo.corpo || {}) } };
 }
 
 function podar(dados, agora = Date.now()) {
   const limite = agora - RETENCAO_DIAS * DIA_MS;
-  for (const chave of ['sono', 'fcRepouso', 'vfc']) {
+  for (const chave of ['sono', 'fcRepouso', 'vfc', 'spo2', 'respiracao', 'tempPele', 'vo2max']) {
     for (const k of Object.keys(dados[chave])) if (Date.parse(k) < limite) delete dados[chave][k];
   }
+  const limiteCorpo = agora - RETENCAO_CORPO_DIAS * DIA_MS;
+  for (const serie of Object.values(dados.corpo)) {
+    for (const k of Object.keys(serie)) if (Date.parse(k) < limiteCorpo) delete serie[k];
+  }
+  for (const [k, e] of Object.entries(dados.exercicios)) if (Date.parse(e.inicio) < limite) delete dados.exercicios[k];
+  for (const k of Object.keys(dados.diario)) if (Date.parse(`${k}T12:00:00Z`) < limite) delete dados.diario[k];
   for (const k of Object.keys(dados.manual)) if (Date.parse(`${k}T12:00:00Z`) < limite) delete dados.manual[k];
   return dados;
 }
@@ -108,6 +125,60 @@ function registrarWebhook(payload, agora = Date.now()) {
     contagem.vfc++;
   }
 
+  // Séries por instante: [chave do payload, campo, faixa válida, destino]
+  const series = [
+    ['oxygen_saturation', 'percentage', [70, 100], dados.spo2, 'spo2'],
+    ['respiratory_rate', 'rate', [4, 40], dados.respiracao, 'respiracao'],
+    ['skin_temperature', 'delta_celsius', [-5, 5], dados.tempPele, 'tempPele'],
+    ['vo2_max', 'vo2_ml_per_min_per_kg', [10, 95], dados.vo2max, 'vo2max'],
+    ['weight', 'kilograms', [25, 300], dados.corpo.peso, 'peso'],
+    ['body_fat', 'percentage', [2, 70], dados.corpo.gordura, 'gordura'],
+    ['lean_body_mass', 'kilograms', [15, 200], dados.corpo.massaMagra, 'massaMagra'],
+    ['basal_metabolic_rate', 'kilocalories_per_day', [600, 5000], dados.corpo.tmb, 'tmb'],
+  ];
+  for (const [chave, campo, [min, max], destino, nome] of series) {
+    for (const r of Array.isArray(payload[chave]) ? payload[chave] : []) {
+      const t = Date.parse(r.time);
+      const v = Number(r[campo] ?? r.avg);
+      if (!Number.isFinite(t) || !Number.isFinite(v) || v < min || v > max) continue;
+      destino[new Date(t).toISOString()] = v;
+      contagem[nome] = (contagem[nome] || 0) + 1;
+    }
+  }
+
+  // Totais diários (o dia corrente chega como total parcial; prevalece o maior valor).
+  for (const d of Array.isArray(payload.daily_totals) ? payload.daily_totals : []) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(d.date || ''))) continue;
+    const atual = dados.diario[d.date] || {};
+    const maior = (a, b) => (Number.isFinite(Number(b)) ? Math.max(Number(a) || 0, Number(b)) : a);
+    dados.diario[d.date] = {
+      passos: maior(atual.passos, d.steps),
+      distanciaM: maior(atual.distanciaM, d.distance_meters),
+      calAtivas: maior(atual.calAtivas, d.active_calories),
+      calTotais: maior(atual.calTotais, d.total_calories),
+    };
+    contagem.dias = (contagem.dias || 0) + 1;
+  }
+
+  // Sessões de exercício (relógio / Samsung Health). As gravadas pelo próprio Strava são ignoradas (já vêm pela API).
+  for (const e of Array.isArray(payload.exercise) ? payload.exercise : []) {
+    const inicio = Date.parse(e.start_time);
+    const fim = Date.parse(e.end_time);
+    if (!Number.isFinite(inicio) || !Number.isFinite(fim) || fim <= inicio) continue;
+    if (/strava/i.test(String(e.source || ''))) continue;
+    const chave = String(e.uuid || `${e.start_time}|${e.type}`).slice(0, 80);
+    dados.exercicios[chave] = {
+      inicio: new Date(inicio).toISOString(),
+      fim: new Date(fim).toISOString(),
+      duracaoSeg: Number(e.duration_seconds) > 0 ? Number(e.duration_seconds) : Math.round((fim - inicio) / 1000),
+      tipo: String(e.type ?? ''),
+      nome: String(e.name || '').slice(0, 60),
+      titulo: String(e.title || '').slice(0, 120),
+      fonte: String(e.source || '').slice(0, 80),
+    };
+    contagem.exercicios = (contagem.exercicios || 0) + 1;
+  }
+
   dados.ultimoRecebimento = new Date(agora).toISOString();
   const app = payload.sequence !== undefined || payload.daily_totals !== undefined ? 'Life Dashboard Companion' : 'HC Webhook';
   dados.origem = `Health Connect (${app}${payload.app_version ? ` ${String(payload.app_version).slice(0, 20)}` : ''})`;
@@ -154,6 +225,12 @@ function semSobreposicao(sessoes) {
   return grupos.map((g) => g.itens.sort((a, b) => (b.comEstagios - a.comEstagios) || (b.duracaoSeg - a.duracaoSeg))[0]);
 }
 
+const mediana = (vs) => {
+  const o = [...vs].sort((a, b) => a - b);
+  const m = Math.floor(o.length / 2);
+  return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2;
+};
+
 function porDia(dados, tz) {
   const sono = {};
   for (const s of semSobreposicao(Object.values(dados.sono))) {
@@ -174,16 +251,21 @@ function porDia(dados, tz) {
     for (const [t, v] of Object.entries(mapa)) (dias[diaLocal(Date.parse(t), tz)] ||= []).push(v);
     return Object.fromEntries(Object.entries(dias).map(([d, vs]) => [d, reducao(vs)]));
   };
+  const media = (vs) => vs.reduce((a, b) => a + b, 0) / vs.length;
   const fcRepouso = agrupar(dados.fcRepouso, (vs) => Math.min(...vs));
-  const vfc = agrupar(dados.vfc, (vs) => vs.reduce((a, b) => a + b, 0) / vs.length);
-  return { sono, fcRepouso, vfc };
+  const vfc = agrupar(dados.vfc, media);
+  // Leituras noturnas: deslocamento de 12 h para que 23h e 6h pertençam à mesma noite (dia em que ela termina).
+  const agruparNoite = (mapa, reducao) => {
+    const dias = {};
+    for (const [t, v] of Object.entries(mapa)) (dias[diaLocal(Date.parse(t) + 12 * 3600000, tz)] ||= []).push(v);
+    return Object.fromEntries(Object.entries(dias).map(([d, vs]) => [d, reducao(vs)]));
+  };
+  const spo2 = agruparNoite(dados.spo2 || {}, media);
+  const respiracao = agruparNoite(dados.respiracao || {}, (vs) => mediana(vs));
+  const tempPele = agruparNoite(dados.tempPele || {}, media);
+  return { sono, fcRepouso, vfc, spo2, respiracao, tempPele };
 }
 
-const mediana = (vs) => {
-  const o = [...vs].sort((a, b) => a - b);
-  const m = Math.floor(o.length / 2);
-  return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2;
-};
 
 // Valor do dia (ou do dia anterior) comparado com a linha de base dos 28 dias anteriores.
 function comparar(serie, hoje, reducaoBase) {
@@ -275,6 +357,23 @@ function avaliar(dados, hoje, config) {
       motivos.push(`VFC (RMSSD) ${Math.round(hrv.valor)} ms, ${pct >= 0 ? `${pct}% acima` : `${Math.abs(pct)}% abaixo`} da linha de base (${Math.round(hrv.base)} ms).`);
     }
   }
+  const resp = comparar(dias.respiracao, hoje, mediana);
+  const deltaResp = resp.valor !== null && resp.base !== null ? resp.valor - resp.base : null;
+  if (deltaResp !== null) {
+    if (deltaResp >= 2) {
+      sinaisFisiologicos++;
+      motivos.push(`Frequência respiratória no sono ${resp.valor.toFixed(1).replace('.', ',')} rpm, ${deltaResp.toFixed(1).replace('.', ',')} acima da linha de base: possível início de infecção ou recuperação incompleta.`);
+    } else {
+      motivos.push(`Frequência respiratória no sono dentro da linha de base (${resp.valor.toFixed(1).replace('.', ',')} rpm).`);
+    }
+  }
+  const pele = dias.tempPele[hoje] ?? dias.tempPele[somarDias(hoje, -1)];
+  if (pele !== undefined && pele >= 0.5) {
+    sinaisFisiologicos++;
+    motivos.push(`Temperatura da pele ${pele.toFixed(1).replace('.', ',')} °C acima do habitual durante o sono.`);
+  }
+  const spo2 = dias.spo2[hoje] ?? null;
+  if (spo2 !== null && spo2 < 93) alertas.push(`Saturação de oxigênio média no sono de ${Math.round(spo2)}%. Se for recorrente ou houver sintomas, procure avaliação médica (a medição do relógio tem margem de erro).`);
   if (sinaisFisiologicos >= 1) reducaoNivel += 1;
   if (deltaFc !== null && deltaFc >= 10) alertas.push('FC de repouso muito acima do habitual. Se houver sintomas (febre, dor de garganta, mal-estar), não treine.');
 
@@ -286,6 +385,7 @@ function avaliar(dados, hoje, config) {
 
   return {
     disponivel: Boolean(noite || media7 !== null || fc.valor !== null || hrv.valor !== null),
+    sinaisFisiologicos,
     reducaoNivel: Math.min(2, reducaoNivel),
     forcarRecuperacao,
     motivos,
@@ -297,6 +397,8 @@ function avaliar(dados, hoje, config) {
       debito7Seg: debito7 === null ? null : Math.round(debito7),
       fcRepouso: fc.valor === null ? null : { valor: Math.round(fc.valor), base: fc.base === null ? null : Math.round(fc.base), dia: fc.dia },
       vfc: hrv.valor === null ? null : { valor: Math.round(hrv.valor), base: hrv.base === null ? null : Math.round(hrv.base), dia: hrv.dia },
+      respiracao: resp.valor === null ? null : { valor: Number(resp.valor.toFixed(1)), base: resp.base === null ? null : Number(resp.base.toFixed(1)) },
+      spo2: spo2 === null ? null : Math.round(spo2),
       historico: Array.from({ length: 14 }, (_, i) => {
         const d = somarDias(hoje, i - 13);
         return { dia: d, dormidoSeg: dias.sono[d]?.dormidoSeg ?? null };
@@ -305,4 +407,70 @@ function avaliar(dados, hoje, config) {
   };
 }
 
-module.exports = { ler, registrarWebhook, registrarManual, avaliar, porDia, tipoEstagio, resumirSessao };
+// ---------------------------------------------------------------- sessões de exercício do relógio
+function tipoStrava(e) {
+  const n = `${e.nome} ${e.titulo}`.toLowerCase();
+  const c = e.tipo;
+  if (['70', '81', '13'].includes(c) || /strength|weight|calisthenic|lifting|muscula|gym|academia/.test(n)) return 'WeightTraining';
+  if (['56', '57'].includes(c) || /running|\brun\b|corrida/.test(n)) return 'Run';
+  if (['8', '9'].includes(c) || /bik|cycl|pedal|bicicleta|spinning/.test(n)) return 'Ride';
+  if (c === '79' || /walk|caminhada/.test(n)) return 'Walk';
+  if (c === '37' || /hik|trilha/.test(n)) return 'Hike';
+  if (['73', '74'].includes(c) || /swim|nata/.test(n)) return 'Swim';
+  if (['83', '48', '71'].includes(c) || /yoga|pilates|stretch|alonga/.test(n)) return 'Yoga';
+  if (c === '36' || /interval|hiit/.test(n)) return 'HighIntensityIntervalTraining';
+  if (c === '25' || /ellipt/.test(n)) return 'Elliptical';
+  if (c === '54' || /rowing|remo/.test(n)) return 'Rowing';
+  if (['68', '69'].includes(c) || /stair|escada/.test(n)) return 'StairStepper';
+  return 'Other';
+}
+
+const NOMES_RELOGIO = {
+  WeightTraining: 'Musculação', Run: 'Corrida', Ride: 'Ciclismo', Walk: 'Caminhada', Hike: 'Trilha', Swim: 'Natação',
+  Yoga: 'Yoga / alongamento', HighIntensityIntervalTraining: 'HIIT', Elliptical: 'Elíptico', Rowing: 'Remo',
+  StairStepper: 'Escada', Other: 'Exercício',
+};
+
+function localISO(instante, tz) {
+  const p = {};
+  for (const { type, value } of new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date(instante))) p[type] = value;
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`;
+}
+
+const sobrepoe = (a0, a1, b0, b1) => {
+  const inter = Math.min(a1, b1) - Math.max(a0, b0);
+  return Math.abs(a0 - b0) <= 20 * 60000 || inter >= 0.5 * Math.min(a1 - a0, b1 - b0);
+};
+
+// Converte sessões do Health Connect em atividades no formato do Strava, sem duplicar o que já veio pelo Strava.
+function atividadesDoRelogio(dados, atividadesStrava, tz) {
+  const strava = atividadesStrava.map((a) => {
+    const i = Date.parse(a.start_date);
+    return [i, i + (Number(a.elapsed_time || a.moving_time) || 0) * 1000];
+  });
+  const sessoes = Object.entries(dados.exercicios || {})
+    .map(([chave, e]) => ({ chave, ...e, _i: Date.parse(e.inicio), _f: Date.parse(e.fim) }))
+    .filter((e) => e.duracaoSeg >= 300 && !strava.some(([i, f]) => sobrepoe(e._i, e._f, i, f)))
+    .sort((a, b) => b.duracaoSeg - a.duracaoSeg);
+  const aceitas = [];
+  for (const e of sessoes) if (!aceitas.some((x) => sobrepoe(e._i, e._f, x._i, x._f))) aceitas.push(e);
+  return aceitas.map((e) => {
+    const tipo = tipoStrava(e);
+    return {
+      id: `hc-${require('crypto').createHash('sha1').update(e.chave).digest('hex').slice(0, 12)}`,
+      name: e.titulo || NOMES_RELOGIO[tipo],
+      type: tipo,
+      sport_type: tipo,
+      start_date: e.inicio,
+      start_date_local: localISO(e._i, tz),
+      moving_time: e.duracaoSeg,
+      elapsed_time: e.duracaoSeg,
+      distance: 0,
+      fonte: /shealth|samsung/i.test(e.fonte) ? 'Samsung Health' : 'Relógio',
+    };
+  });
+}
+
+module.exports = { ler, registrarWebhook, registrarManual, avaliar, porDia, tipoEstagio, resumirSessao, atividadesDoRelogio, mediana };

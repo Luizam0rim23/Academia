@@ -57,7 +57,28 @@ function gerarSaude(agora = Date.now()) {
     resting.push({ bpm: d === 0 ? 54 : 51 + ((d * 7) % 4), time: new Date(fim + 600000).toISOString() });
     hrv.push({ rmssd_millis: d === 0 ? 49 : 55 + ((d * 11) % 9), time: new Date(fim - 3600000).toISOString() });
   }
-  return { timestamp: new Date(agora).toISOString(), app_version: 'demo', timezone: 'UTC', sleep, resting_heart_rate: resting, heart_rate_variability: hrv };
+  // Composição corporal (peso em leve queda), passos, respiração, SpO2 e o treino de hoje gravado pelo relógio.
+  const weight = [], body_fat = [], lean_body_mass = [], respiratory_rate = [], oxygen_saturation = [], daily_totals = [];
+  for (let d = 35; d >= 0; d -= 3) {
+    const t = new Date(agora - d * 86400000).toISOString();
+    weight.push({ kilograms: Number((81.2 + d * 0.012).toFixed(1)), time: t });
+    body_fat.push({ percentage: Number((18.4 + d * 0.01).toFixed(1)), time: t });
+    lean_body_mass.push({ kilograms: Number((66.2 + d * 0.004).toFixed(1)), time: t });
+  }
+  for (let d = 20; d >= 0; d--) {
+    const noite = new Date(agora - d * 86400000 - 6 * 3600000).toISOString();
+    respiratory_rate.push({ rate: 14.5 + ((d * 7) % 5) / 10, time: noite });
+    oxygen_saturation.push({ percentage: 96 + ((d * 3) % 3), time: noite });
+    const data = new Date(agora - d * 86400000).toISOString().slice(0, 10);
+    if (d >= 1 && d <= 8) daily_totals.push({ date: data, steps: 5200 + ((d * 911) % 1500), distance_meters: 3900, active_calories: 310, total_calories: 2350 });
+  }
+  const inicioTreino = new Date(agora - 2 * 3600000);
+  const exercise = [{ uuid: 'demo-forca-hoje', type: '70', name: 'strength_training', start_time: inicioTreino.toISOString(), end_time: new Date(inicioTreino.getTime() + 55 * 60000).toISOString(), duration_seconds: 3300, source: 'com.sec.android.app.shealth' }];
+  return {
+    timestamp: new Date(agora).toISOString(), app_version: 'demo', timezone: 'UTC', sequence: 1,
+    sleep, resting_heart_rate: resting, heart_rate_variability: hrv,
+    weight, body_fat, lean_body_mass, respiratory_rate, oxygen_saturation, daily_totals, exercise,
+  };
 }
 
 module.exports = { gerar, gerarSaude };
