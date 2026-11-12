@@ -66,7 +66,7 @@ cp .env.example .env
 ### Opção A — VPS com Docker (recomendada)
 
 ```bash
-cd treino-strava
+git clone https://github.com/Luizam0rim23/Academia.git && cd Academia
 cp .env.example .env    # preencher as variáveis
 docker compose up -d --build
 ```
@@ -111,7 +111,7 @@ sudo systemctl enable --now treino-strava
 
 ### Opção C — Plataformas gerenciadas (Railway, Render, Fly.io)
 
-- Criar o serviço a partir do diretório `treino-strava` (o Dockerfile é detectado automaticamente).
+- Criar o serviço a partir deste repositório (o Dockerfile é detectado automaticamente).
 - **Anexar volume persistente** montado em `/data` e definir `DATA_DIR=/data`. Sem volume persistente, a conexão com o Strava e o histórico de sono são perdidos a cada implantação.
 - Definir as variáveis da seção 3 no painel da plataforma.
 - Em planos que hibernam o serviço, definir `CRON_SECRET` e agendar uma chamada diária (ex.: cron-job.org):
