@@ -75,6 +75,8 @@
     renderizarStatus(p);
 
     $('conectar').hidden = p.conectado;
+    $('form-strava-app').hidden = p.stravaConfigurado;
+    $('btn-conectar').hidden = !p.stravaConfigurado;
     $('painel').hidden = !p.conectado;
     if (!p.conectado) { $('data-hoje').textContent = ''; return; }
 
@@ -217,11 +219,23 @@
     }
 
     const integEl = limpar($('sono-integracao'));
-    if (integ.webhookAtivo) {
+    if (integ.webhookAtivo && integ.token) {
+      integEl.append('Configuração do app de envio (Life Dashboard Companion):');
+      integEl.append(linhaCopiar('Endereço', integ.url), linhaCopiar('Segredo', integ.token));
+    } else if (integ.webhookAtivo) {
       integEl.append('Integração automática ativa. Endereço para o app do celular: ', el('code', {}, integ.url), ' (Life Dashboard Companion: segredo de assinatura = token; HC Webhook: cabeçalho Authorization: Bearer <token>).');
     } else {
       integEl.append('Integração automática desativada: defina HEALTH_WEBHOOK_TOKEN no servidor e configure o app Life Dashboard Companion ou HC Webhook no celular (ver README).');
     }
+  }
+
+  function linhaCopiar(rotulo, valor) {
+    const botao = el('button', { type: 'button', class: 'botao', onclick: async () => {
+      try { await navigator.clipboard.writeText(valor); botao.textContent = 'Copiado'; }
+      catch { window.prompt(`Copie o ${rotulo.toLowerCase()}:`, valor); }
+      setTimeout(() => { botao.textContent = `Copiar ${rotulo.toLowerCase()}`; }, 2000);
+    } }, `Copiar ${rotulo.toLowerCase()}`);
+    return el('span', { class: 'copiar' }, el('code', {}, rotulo === 'Segredo' ? `${valor.slice(0, 6)}…${valor.slice(-4)}` : valor), botao);
   }
 
   function renderizarIndicadores(m, cfg) {
@@ -369,6 +383,15 @@
     } catch (err) { aviso(err.message, true); }
   });
 
+  $('form-strava-app').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const d = Object.fromEntries(new FormData(e.currentTarget));
+    try {
+      await api('PUT', '/api/strava/app', { clientId: d.clientId, clientSecret: d.clientSecret });
+      location.href = '/auth/strava';
+    } catch (err) { aviso(err.message, true); }
+  });
+
   $('btn-desconectar').addEventListener('click', async () => {
     if (!confirm('Desconectar a conta do Strava? O acesso será revogado e as atividades armazenadas neste servidor serão apagadas.')) return;
     try { renderizar(await api('POST', '/api/desconectar', {})); aviso('Conta do Strava desconectada.'); } catch (err) { aviso(err.message, true); }
@@ -379,6 +402,7 @@
     negado: ['Autorização cancelada no Strava.', true],
     escopo: ['É necessário autorizar a leitura das atividades (inclusive privadas) para gerar as recomendações.', true],
     estado: ['Falha de validação no retorno do Strava. Tente conectar novamente.', true],
+    semapp: ['Informe primeiro o Client ID e o Client Secret do aplicativo Strava.', true],
     falha: ['Não foi possível concluir a conexão com o Strava. Verifique as credenciais do aplicativo.', true],
   };
 

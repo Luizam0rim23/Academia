@@ -24,13 +24,28 @@ class ErroStrava extends Error {
   }
 }
 
+// Credenciais do aplicativo Strava: variáveis de ambiente ou cadastro pela página (modo local).
+function credenciais() {
+  if (env.STRAVA_CLIENT_ID && env.STRAVA_CLIENT_SECRET) return { id: env.STRAVA_CLIENT_ID, secret: env.STRAVA_CLIENT_SECRET, origem: 'ambiente' };
+  const salvo = store.ler('strava-app', null);
+  return salvo && salvo.id && salvo.secret ? { id: salvo.id, secret: salvo.secret, origem: 'pagina' } : null;
+}
+
 function configurado() {
-  return Boolean(env.STRAVA_CLIENT_ID && env.STRAVA_CLIENT_SECRET);
+  return Boolean(credenciais());
+}
+
+function salvarCredenciais(id, secret) {
+  const cid = String(id || '').trim();
+  const sec = String(secret || '').trim();
+  if (!/^\d{1,12}$/.test(cid)) throw Object.assign(new Error('Client ID inválido: informe apenas os números.'), { status: 400 });
+  if (!/^[0-9a-f]{20,80}$/i.test(sec)) throw Object.assign(new Error('Client Secret inválido: copie o código completo exibido pelo Strava.'), { status: 400 });
+  store.gravar('strava-app', { id: cid, secret: sec });
 }
 
 function urlAutorizacao(state) {
   const p = new URLSearchParams({
-    client_id: env.STRAVA_CLIENT_ID,
+    client_id: credenciais().id,
     response_type: 'code',
     redirect_uri: `${env.BASE_URL}/auth/strava/callback`,
     approval_prompt: 'auto',
@@ -57,7 +72,7 @@ async function token(params) {
   return requisicao(`${OAUTH}/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: env.STRAVA_CLIENT_ID, client_secret: env.STRAVA_CLIENT_SECRET, ...params }),
+    body: new URLSearchParams({ client_id: credenciais().id, client_secret: credenciais().secret, ...params }),
   });
 }
 
@@ -145,4 +160,4 @@ function atleta() {
   return store.ler('tokens', null)?.athlete || null;
 }
 
-module.exports = { configurado, urlAutorizacao, trocarCodigo, sincronizar, desconectar, atleta, ErroStrava, ESCOPO };
+module.exports = { configurado, credenciais, salvarCredenciais, urlAutorizacao, trocarCodigo, sincronizar, desconectar, atleta, ErroStrava, ESCOPO };

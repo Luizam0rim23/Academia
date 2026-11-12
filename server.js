@@ -18,7 +18,8 @@ if (!env.DEMO) {
   const faltando = [];
   // Senha dispensável apenas quando o servidor aceita conexões somente do próprio aparelho.
   if (!env.APP_PASSWORD && !env.SOMENTE_LOCAL) faltando.push('APP_PASSWORD');
-  if (!strava.configurado()) faltando.push('STRAVA_CLIENT_ID', 'STRAVA_CLIENT_SECRET');
+  // No modo local, as credenciais do Strava podem ser cadastradas pela própria página.
+  if (!strava.configurado() && !env.SOMENTE_LOCAL) faltando.push('STRAVA_CLIENT_ID', 'STRAVA_CLIENT_SECRET');
   if (faltando.length) {
     console.error(`Configuração incompleta. Defina as variáveis: ${faltando.join(', ')} (veja .env.example).`);
     process.exit(1);
@@ -98,13 +99,17 @@ function montarPainel() {
   const base = {
     demo: env.DEMO,
     conectado,
+    stravaConfigurado: env.DEMO || strava.configurado(),
+    modoLocal: env.SOMENTE_LOCAL,
     atleta: env.DEMO ? { firstname: 'Demonstração' } : strava.atleta(),
     protecao: auth.protecaoAtiva(),
     estadoSync: sync.estado(),
     config,
     saudeIntegracao: {
       webhookAtivo: Boolean(env.HEALTH_WEBHOOK_TOKEN),
-      url: `${env.BASE_URL}/api/saude/webhook`,
+      url: env.SOMENTE_LOCAL ? `http://127.0.0.1:${env.PORT}/api/saude/webhook` : `${env.BASE_URL}/api/saude/webhook`,
+      // O segredo só é exibido no modo local (acesso restrito ao próprio aparelho), para facilitar a cópia.
+      token: env.SOMENTE_LOCAL && env.HEALTH_WEBHOOK_TOKEN ? env.HEALTH_WEBHOOK_TOKEN : undefined,
       ultimoRecebimento: saude.ler().ultimoRecebimento,
       origem: saude.ler().origem,
     },
@@ -174,6 +179,7 @@ async function rotear(req, res) {
 
   if (metodo === 'GET' && caminho === '/auth/strava') {
     if (env.DEMO) return redirecionar(res, '/');
+    if (!strava.configurado()) return redirecionar(res, '/?strava=semapp');
     const { state, cookie } = auth.novoEstadoOAuth();
     return redirecionar(res, strava.urlAutorizacao(state), { 'Set-Cookie': cookie });
   }
@@ -219,6 +225,13 @@ async function rotear(req, res) {
     else return json(res, 400, { erro: 'Foco inválido.' });
     store.gravar('marcacoes', marcacoes);
     return json(res, 200, montarPainel());
+  }
+
+  if (metodo === 'PUT' && caminho === '/api/strava/app') {
+    if (strava.credenciais()?.origem === 'ambiente') return json(res, 409, { erro: 'Credenciais definidas no servidor (.env).' });
+    const { clientId, clientSecret } = await lerJson(req);
+    strava.salvarCredenciais(clientId, clientSecret);
+    return json(res, 200, { ok: true });
   }
 
   if (metodo === 'PUT' && caminho === '/api/saude/sono') {

@@ -40,7 +40,14 @@
       <li>dias consecutivos de atividade e meta semanal de treinos.</li>
     </ul>
     <p class="sutil">Acesso somente leitura. Nenhuma informação é publicada no Strava.</p>
-    <a class="botao strava" href="/auth/strava">Conectar com Strava</a>
+    <form id="form-strava-app" class="form-strava-app" hidden>
+      <p><strong>Etapa 1 de 2 — dados do aplicativo criado em strava.com/settings/api</strong><br>
+      <span class="sutil pequeno">Domínio de autorização callback: <code>localhost</code>. Copie e cole os dois códigos exibidos pelo Strava.</span></p>
+      <label>Client ID (ID do cliente)<input name="clientId" inputmode="numeric" autocomplete="off" required></label>
+      <label>Client Secret (segredo do cliente)<input name="clientSecret" type="password" autocomplete="off" spellcheck="false" required></label>
+      <button type="submit" class="botao strava">Salvar e conectar com Strava</button>
+    </form>
+    <a id="btn-conectar" class="botao strava" href="/auth/strava">Conectar com Strava</a>
   </section>
 
   <div id="painel" hidden>

@@ -11,8 +11,8 @@ BIN="${PREFIX:-/data/data/com.termux/files/usr}/bin"
 
 etapa() { printf '\n== %s\n' "$1"; }
 
-etapa "1/5 Instalando Node.js e Git"
-pkg update -y
+etapa "1/5 Instalando Node.js e Git (alguns minutos na primeira vez)"
+yes | pkg upgrade -y || true
 pkg install -y nodejs-lts git
 
 etapa "2/5 Baixando ou atualizando o aplicativo"
@@ -27,25 +27,17 @@ cd "$DIR"
 if [ -f .env ]; then
   echo "Configuração existente preservada ($DIR/.env)."
 else
-  echo "Informe as credenciais do aplicativo criado em strava.com/settings/api"
-  echo "(Authorization Callback Domain: localhost)."
-  CLIENT_ID="${STRAVA_CLIENT_ID:-}"
-  CLIENT_SECRET="${STRAVA_CLIENT_SECRET:-}"
-  [ -n "$CLIENT_ID" ] || read -r -p "Client ID do Strava: " CLIENT_ID < /dev/tty
-  [ -n "$CLIENT_SECRET" ] || read -r -p "Client Secret do Strava: " CLIENT_SECRET < /dev/tty
   TOKEN="$(node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))")"
   umask 077
   cat > .env <<CFG
 HOST=127.0.0.1
 PORT=$PORTA
 BASE_URL=http://localhost:$PORTA
-STRAVA_CLIENT_ID=$CLIENT_ID
-STRAVA_CLIENT_SECRET=$CLIENT_SECRET
 HEALTH_WEBHOOK_TOKEN=$TOKEN
 APP_PASSWORD=
 DATA_DIR=$DIR/data
 CFG
-  echo "Configuração criada."
+  echo "Configuração criada. Os dados do Strava serão informados na própria página."
 fi
 
 etapa "4/5 Criando o comando 'treino'"
@@ -79,7 +71,12 @@ esac
 CMD
 chmod 700 "$BIN/treino"
 
-etapa "5/5 Início automático (requer o app Termux:Boot)"
+etapa "5/5 Início automático"
+# Ao abrir o Termux, o aplicativo é iniciado (se ainda não estiver em execução).
+MARCA="# treino-do-dia: inicio automatico"
+touch "$HOME/.bashrc"
+grep -qF "$MARCA" "$HOME/.bashrc" || printf '\n%s\n%s\n' "$MARCA" "$BIN/treino iniciar >/dev/null 2>&1" >> "$HOME/.bashrc"
+# Opcional: com o app Termux:Boot, inicia também após reiniciar o celular.
 mkdir -p "$HOME/.termux/boot"
 cat > "$HOME/.termux/boot/academia" <<BOOT
 #!/data/data/com.termux/files/usr/bin/bash
@@ -91,9 +88,8 @@ chmod 700 "$HOME/.termux/boot/academia"
 "$BIN/treino" reiniciar
 cat <<FIM
 
-Instalação concluída.
-- Abrir o aplicativo:         treino abrir   (ou acesse http://localhost:$PORTA no Chrome)
-- Token para o app de envio:  treino token
-- Endereço do app de envio:   http://127.0.0.1:$PORTA/api/saude/webhook
-- Outros comandos:            treino status | log | parar | atualizar
+Instalação concluída. O aplicativo será aberto no navegador.
+Próximos passos na página: informar Client ID e Client Secret do Strava e conectar.
+Endereço do aplicativo: http://localhost:$PORTA  (comandos: treino abrir | status | log | atualizar)
 FIM
+command -v termux-open-url >/dev/null && termux-open-url "http://localhost:$PORTA" || true

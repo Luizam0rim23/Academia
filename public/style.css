@@ -69,6 +69,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -127,6 +128,11 @@ p { margin: 0 0 10px; }
 .erro { color: var(--risco); }
 
 /* ---------- conectar */
+.form-strava-app { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.form-strava-app label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--texto-2); }
+.copiar { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.copiar code { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.copiar .botao { min-height: 32px; padding: 0 10px; font-size: 0.82rem; }
 .conectar { max-width: 640px; }
 .conectar h1 { margin-bottom: 10px; }
 .lista-simples { margin: 0 0 12px; padding-left: 20px; }

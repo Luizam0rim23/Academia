@@ -126,19 +126,19 @@ sudo systemctl enable --now treino-strava
 | Acesso | Somente pelo próprio celular (`http://localhost:3000`) |
 | Limitações | Depende de o Android manter o Termux ativo; sem cópia de segurança automática (ver abaixo) |
 
-Passo a passo (Galaxy S26):
+Passo a passo (Galaxy S26) — tudo o que exige ação no celular:
 
-1. Desativar temporariamente o **Bloqueador automático** (Configurações → Segurança e privacidade → Bloqueador automático).
-2. Instalar **Termux** e **Termux:Boot** da mesma origem — GitHub (`github.com/termux/termux-app/releases` e `github.com/termux/termux-boot/releases`) ou F-Droid. Não misturar origens. Reativar o Bloqueador automático em seguida.
-3. Criar o aplicativo em `strava.com/settings/api` com **Website** `http://localhost` e **Authorization Callback Domain** `localhost`. Anotar Client ID e Client Secret.
-4. Abrir o Termux e executar (será solicitado o Client ID e o Client Secret):
+1. Criar o aplicativo em `strava.com/settings/api`: **Site** `http://localhost`; **Domínio de autorização callback** `localhost`.
+2. Instalar o **Termux** pelo GitHub (`github.com/termux/termux-app/releases`, arquivo `arm64-v8a`), desativando o **Bloqueador automático** só durante a instalação (Configurações → Segurança e privacidade).
+3. Abrir o Termux, colar o comando abaixo e aguardar (não há perguntas; o navegador abre ao final):
    ```bash
    curl -fsSLo instalar.sh https://raw.githubusercontent.com/Luizam0rim23/Academia/main/scripts/termux-instalar.sh && bash instalar.sh
    ```
-5. Abrir o **Termux:Boot** uma vez (registra o início automático após reiniciar o celular).
-6. Bateria: definir **Sem restrições** para Termux e Termux:Boot (Configurações → Aplicativos → [app] → Bateria) e incluir o Termux em **Apps que nunca suspendem** (Configurações → Bateria → Limites de uso em segundo plano).
-7. Executar `treino abrir`, entrar no aplicativo e clicar em **Conectar com Strava**. No Chrome, menu ⋮ → **Adicionar à tela inicial**.
-8. App de envio (Life Dashboard Companion): destino `http://127.0.0.1:3000/api/saude/webhook`; segredo de assinatura = valor exibido por `treino token` (toque longo no Termux para copiar).
+4. Na página aberta: colar **Client ID** e **Client Secret** do Strava → **Salvar e conectar com Strava** → **Autorizar**. No Chrome, menu ⋮ → **Adicionar à tela inicial**.
+5. Bateria do Termux: **Sem restrições** (Configurações → Aplicativos → Termux → Bateria) e incluir em **Apps que nunca suspendem** (Configurações → Bateria → Limites de uso em segundo plano).
+6. No card **Sono e recuperação**, usar **Copiar endereço** e **Copiar segredo** e colar no Life Dashboard Companion (destino e segredo de assinatura); agendar envio às 07:30.
+
+O aplicativo inicia automaticamente sempre que o Termux é aberto. Após reiniciar o celular, basta abrir o Termux uma vez (ou instalar o app opcional **Termux:Boot**, da mesma origem do Termux, e abri-lo uma vez para início automático).
 
 Comandos disponíveis no Termux:
 
