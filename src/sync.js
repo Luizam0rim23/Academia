@@ -74,7 +74,7 @@ function iniciarAgenda() {
   setTimeout(() => {
     if (conectado() && horasDesdeUltima() > 20) executar('inicialização');
   }, 3000).unref();
-  setInterval(verificar, 60000).unref();
+  setInterval(verificar, 5 * 60000).unref();
 }
 
 module.exports = { executar, estado, conectado, garantirAtualizado, iniciarAgenda };
