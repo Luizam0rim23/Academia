@@ -129,18 +129,20 @@ $logado = $false
 if (Test-Path -LiteralPath $Tailscale) {
   try { $estado = (& $Tailscale status --json 2>$null | Out-String | ConvertFrom-Json); $logado = $estado.BackendState -eq 'Running' } catch { }
   if ($logado) {
-    $saida = (& $Tailscale funnel --bg $Porta 2>&1 | Out-String)
-    $link = [regex]::Match($saida, 'https://login\.tailscale\.com/\S+').Value
-    if ($link) {
-      Start-Process $link
-      Write-Warning 'Autorize o Funnel/HTTPS na página aberta do Tailscale e execute este comando de instalação novamente.'
-    } else {
-      $Publico = 'https://' + $estado.Self.DNSName.TrimEnd('.')
+    Write-Host 'Publicando com o Tailscale Funnel. Se aparecer um link "login.tailscale.com", abra-o (Ctrl+clique), aprove e aguarde: a instalação continua sozinha.' -ForegroundColor Yellow
+    # Execução sem captura de saída: o Tailscale exibe o link de aprovação e aguarda a confirmação.
+    & $Tailscale funnel --bg $Porta
+    $status = (& $Tailscale funnel status 2>&1 | Out-String)
+    $m = [regex]::Match($status, 'https://[A-Za-z0-9.-]+\.ts\.net')
+    if ($m.Success) {
+      $Publico = $m.Value
       Definir-Variavel $EnvFile 'WEBHOOK_URL' "$Publico/api/saude/webhook"
       # Reinicia para aplicar o endereço público exibido na página
       Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like "*$App*server.js*" } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }
       Start-Process -FilePath 'wscript.exe' -ArgumentList ('"' + $Vbs + '"')
       Write-Host "Site publicado: $Publico" -ForegroundColor Green
+    } else {
+      Write-Warning 'Publicação não confirmada. Aprove o HTTPS/Funnel no painel do Tailscale e execute este comando de instalação novamente.'
     }
   } else {
     Start-Process $Tailscale -ErrorAction SilentlyContinue
