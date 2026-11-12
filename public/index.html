@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f5f58">
+<title>Treino do Dia</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topo">
+  <div class="topo-interno">
+    <div class="marca">
+      <img src="/icon.svg" alt="" width="28" height="28">
+      <div>
+        <strong>Treino do Dia</strong>
+        <span id="data-hoje" class="sutil"></span>
+      </div>
+    </div>
+    <div class="acoes-topo">
+      <span id="status-sync" class="sutil status-sync"></span>
+      <button id="btn-sync" class="botao" type="button" hidden>Sincronizar agora</button>
+    </div>
+  </div>
+</header>
+
+<main class="conteudo">
+  <div id="aviso" class="aviso" role="status" hidden></div>
+
+  <section id="conectar" class="cartao conectar" hidden>
+    <h1>Conecte sua conta do Strava</h1>
+    <p>O aplicativo lê suas atividades dos últimos 120 dias e, a partir daí, sincroniza diariamente para definir o treino de academia de cada dia, considerando:</p>
+    <ul class="lista-simples">
+      <li>recuperação de cada grupo muscular;</li>
+      <li>fadiga de pernas gerada por corrida, pedal e treinos de membros inferiores;</li>
+      <li>relação entre carga recente (7 dias) e carga habitual (28 dias);</li>
+      <li>dias consecutivos de atividade e meta semanal de treinos.</li>
+    </ul>
+    <p class="sutil">Acesso somente leitura. Nenhuma informação é publicada no Strava.</p>
+    <a class="botao strava" href="/auth/strava">Conectar com Strava</a>
+  </section>
+
+  <div id="painel" hidden>
+    <div class="grade">
+      <div class="coluna-principal">
+        <section class="cartao plano" aria-labelledby="plano-titulo">
+          <div class="plano-cabecalho">
+            <p id="plano-referencia" class="rotulo"></p>
+            <h1 id="plano-titulo"></h1>
+            <p id="plano-descricao" class="sutil"></p>
+            <div id="plano-selos" class="selos"></div>
+          </div>
+          <div id="plano-registrado" class="nota-sucesso" hidden></div>
+          <div id="plano-alertas"></div>
+          <p id="plano-aquecimento" class="aquecimento"></p>
+          <div class="tabela-rolagem">
+            <table class="tabela exercicios">
+              <thead>
+                <tr><th scope="col" class="col-check"><span class="sr">Feito</span></th><th scope="col">Exercício</th><th scope="col">Séries × reps</th><th scope="col">Descanso</th><th scope="col">RIR</th></tr>
+              </thead>
+              <tbody id="plano-exercicios"></tbody>
+            </table>
+          </div>
+          <p id="plano-progresso" class="sutil progresso"></p>
+          <ul id="plano-observacoes" class="observacoes"></ul>
+        </section>
+
+        <section class="cartao" aria-labelledby="motivos-titulo">
+          <h2 id="motivos-titulo">Fundamentos da recomendação</h2>
+          <ol id="motivos" class="motivos"></ol>
+        </section>
+
+        <section class="cartao" aria-labelledby="carga-titulo">
+          <h2 id="carga-titulo">Carga diária — últimos 28 dias</h2>
+          <div id="grafico" class="grafico" role="img"></div>
+          <div id="legenda" class="legenda"></div>
+        </section>
+      </div>
+
+      <aside class="coluna-lateral">
+        <section class="cartao" aria-labelledby="ind-titulo">
+          <h2 id="ind-titulo">Indicadores</h2>
+          <dl id="indicadores" class="indicadores"></dl>
+        </section>
+
+        <section class="cartao" aria-labelledby="proj-titulo">
+          <h2 id="proj-titulo">Próximos dias</h2>
+          <p class="sutil pequeno">Projeção considerando o cumprimento do plano e apenas treinos de academia.</p>
+          <ol id="projecao" class="projecao"></ol>
+        </section>
+
+        <section class="cartao" aria-labelledby="grupos-titulo">
+          <h2 id="grupos-titulo">Último estímulo por grupo</h2>
+          <ul id="grupos" class="grupos"></ul>
+        </section>
+      </aside>
+    </div>
+
+    <section class="cartao" aria-labelledby="ativ-titulo">
+      <h2 id="ativ-titulo">Atividades dos últimos 21 dias</h2>
+      <p class="sutil pequeno">Nos treinos de musculação, ajuste o foco quando a identificação automática estiver incorreta. A marcação vale apenas para este aplicativo.</p>
+      <div class="tabela-rolagem">
+        <table class="tabela atividades">
+          <thead>
+            <tr><th scope="col">Data</th><th scope="col">Atividade</th><th scope="col">Tipo</th><th scope="col" class="num">Duração</th><th scope="col" class="num">Distância</th><th scope="col" class="num">Carga</th><th scope="col">Foco</th></tr>
+          </thead>
+          <tbody id="atividades"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="cartao" aria-labelledby="cfg-titulo">
+      <details id="config-detalhes">
+        <summary><h2 id="cfg-titulo">Configurações</h2></summary>
+        <form id="form-config" class="form-config">
+          <label>Treinos de academia por semana
+            <input name="gymDaysPerWeek" type="number" min="1" max="7" required>
+          </label>
+          <label>Divisão de treino
+            <select name="split">
+              <option value="auto">Automática (conforme a meta semanal)</option>
+              <option value="ppl">Empurrar / Puxar / Pernas</option>
+              <option value="upper_lower">Superiores / Inferiores</option>
+              <option value="full">Corpo inteiro</option>
+            </select>
+          </label>
+          <label>Objetivo
+            <select name="goal">
+              <option value="hipertrofia">Hipertrofia</option>
+              <option value="forca">Força</option>
+              <option value="corrida">Suporte à corrida / endurance</option>
+              <option value="saude">Saúde e condicionamento geral</option>
+            </select>
+          </label>
+          <label>Duração-alvo da sessão (min)
+            <input name="sessionMinutes" type="number" min="20" max="150" required>
+          </label>
+          <label>Horário habitual do treino (hora)
+            <input name="trainingHour" type="number" min="0" max="23" required>
+          </label>
+          <label>Horário da sincronização diária (hora)
+            <input name="syncHour" type="number" min="0" max="23" required>
+          </label>
+          <label>Máximo de dias consecutivos
+            <input name="maxConsecutiveDays" type="number" min="2" max="14" required>
+          </label>
+          <label>FC máxima (opcional)
+            <input name="maxHr" type="number" min="120" max="230" placeholder="ex.: 188">
+          </label>
+          <label>FC de repouso
+            <input name="restHr" type="number" min="30" max="110" required>
+          </label>
+          <label>Fuso horário
+            <input name="timezone" type="text" required spellcheck="false">
+          </label>
+          <div class="form-acoes">
+            <button type="submit" class="botao primario">Salvar configurações</button>
+          </div>
+        </form>
+      </details>
+    </section>
+  </div>
+</main>
+
+<footer class="rodape">
+  <div class="rodape-interno">
+    <span id="atleta" class="sutil"></span>
+    <span class="sutil">Dados de atividades fornecidos pelo Strava.</span>
+    <div class="rodape-acoes">
+      <button id="btn-desconectar" class="botao-link" type="button" hidden>Desconectar Strava</button>
+      <form id="form-sair" method="post" action="/logout" hidden><button class="botao-link" type="submit">Sair</button></form>
+    </div>
+  </div>
+</footer>
+<script src="/app.js"></script>
+</body>
+</html>

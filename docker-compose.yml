@@ -1,0 +1,15 @@
+services:
+  treino:
+    build: .
+    container_name: treino-strava
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - DATA_DIR=/data
+    ports:
+      - "127.0.0.1:3000:3000"   # exposto apenas localmente; publique via proxy reverso com HTTPS
+    volumes:
+      - treino-dados:/data
+
+volumes:
+  treino-dados:
