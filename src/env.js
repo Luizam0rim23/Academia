@@ -17,10 +17,15 @@ function carregarDotEnv() {
 carregarDotEnv();
 
 const PORT = Number(process.env.PORT) || 3000;
+// HOST=127.0.0.1 restringe o acesso ao próprio aparelho (uso local, ex.: Termux no celular).
+const HOST = process.env.HOST || '0.0.0.0';
+const SOMENTE_LOCAL = ['127.0.0.1', 'localhost', '::1'].includes(HOST);
 const BASE_URL = (process.env.BASE_URL || `http://localhost:${PORT}`).replace(/\/+$/, '');
 
 module.exports = {
   PORT,
+  HOST,
+  SOMENTE_LOCAL,
   BASE_URL,
   HTTPS: BASE_URL.startsWith('https://'),
   DEMO: process.env.DEMO === '1',

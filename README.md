@@ -117,6 +117,41 @@ sudo systemctl enable --now treino-strava
 - Em planos que hibernam o serviço, definir `CRON_SECRET` e agendar uma chamada diária (ex.: cron-job.org):
   `POST https://treino.seudominio.com.br/cron/sync` com o cabeçalho `Authorization: Bearer <CRON_SECRET>`.
 
+### Opção D — No próprio celular Android (Termux), gratuita
+
+| Aspecto | Situação |
+|---|---|
+| Custo | R$ 0, sem cartão de crédito |
+| Privacidade | Dados de treino e saúde permanecem no celular; o servidor não fica exposto na internet (`HOST=127.0.0.1`) |
+| Acesso | Somente pelo próprio celular (`http://localhost:3000`) |
+| Limitações | Depende de o Android manter o Termux ativo; sem cópia de segurança automática (ver abaixo) |
+
+Passo a passo (Galaxy S26):
+
+1. Desativar temporariamente o **Bloqueador automático** (Configurações → Segurança e privacidade → Bloqueador automático).
+2. Instalar **Termux** e **Termux:Boot** da mesma origem — GitHub (`github.com/termux/termux-app/releases` e `github.com/termux/termux-boot/releases`) ou F-Droid. Não misturar origens. Reativar o Bloqueador automático em seguida.
+3. Criar o aplicativo em `strava.com/settings/api` com **Website** `http://localhost` e **Authorization Callback Domain** `localhost`. Anotar Client ID e Client Secret.
+4. Abrir o Termux e executar (será solicitado o Client ID e o Client Secret):
+   ```bash
+   curl -fsSLo instalar.sh https://raw.githubusercontent.com/Luizam0rim23/Academia/main/scripts/termux-instalar.sh && bash instalar.sh
+   ```
+5. Abrir o **Termux:Boot** uma vez (registra o início automático após reiniciar o celular).
+6. Bateria: definir **Sem restrições** para Termux e Termux:Boot (Configurações → Aplicativos → [app] → Bateria) e incluir o Termux em **Apps que nunca suspendem** (Configurações → Bateria → Limites de uso em segundo plano).
+7. Executar `treino abrir`, entrar no aplicativo e clicar em **Conectar com Strava**. No Chrome, menu ⋮ → **Adicionar à tela inicial**.
+8. App de envio (Life Dashboard Companion): destino `http://127.0.0.1:3000/api/saude/webhook`; segredo de assinatura = valor exibido por `treino token` (toque longo no Termux para copiar).
+
+Comandos disponíveis no Termux:
+
+| Comando | Função |
+|---|---|
+| `treino abrir` | Inicia (se necessário) e abre o aplicativo no navegador |
+| `treino status` / `treino log` | Situação e últimas linhas do registro |
+| `treino parar` / `treino reiniciar` | Controle do servidor |
+| `treino token` | Exibe o token do app de envio |
+| `treino atualizar` | Baixa a versão mais recente e reinicia |
+
+Cópia de segurança: os dados ficam em `~/academia/data`. Para guardar uma cópia na memória do celular, executar uma vez `termux-setup-storage` e depois `cp -r ~/academia/data ~/storage/downloads/academia-backup`. Mesmo sem cópia, o histórico do Strava é recuperável (nova sincronização de 120 dias); perdem-se apenas configurações, marcações de foco e histórico de sono.
+
 ## 5. Primeiro uso
 
 1. Acessar `BASE_URL` e informar a senha.
@@ -170,7 +205,7 @@ O servidor aceita os dois formatos automaticamente (sono com estágios, FC de re
 | 3 | Autorizar o Samsung Health a gravar na Conexão Saúde (nome do Health Connect em português): Sono, Frequência cardíaca em repouso e, se oferecido, Variabilidade da FC | Configurações do celular → Conexão Saúde → Permissões de apps → Samsung Health |
 | 3a | Conferir se a noite chegou à Conexão Saúde | Conexão Saúde → Dados e acesso → Sono |
 | 4 | Instalar o Life Dashboard Companion (APK gratuito) e conceder leitura de Sono, FC em repouso e VFC | GitHub Releases / F-Droid / Obtainium |
-| 5 | Cadastrar o destino (URL + segredo de assinatura) e o agendamento (ex.: 07:30 e 21:00) | Life Dashboard Companion → destinos / agendamento |
+| 5 | Cadastrar o destino (URL + segredo de assinatura) e o agendamento (ex.: 07:30 e 21:00). No modo celular (Opção D), o destino é `http://127.0.0.1:3000/api/saude/webhook` | Life Dashboard Companion → destinos / agendamento |
 | 6 | Retirar a restrição de bateria do app de envio, para que o envio programado não seja interrompido | Configurações → Aplicativos → Life Dashboard Companion → Bateria → Sem restrições |
 | 7 | Fazer um envio manual e confirmar o "último recebimento" no card Sono e recuperação | App de envio / página do aplicativo |
 

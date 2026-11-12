@@ -16,7 +16,8 @@ const { FOCOS_MARCAVEIS, FOCOS, NOMES_DIVISAO } = require('./src/exercises');
 // ------------------------------------------------------------- validação de inicialização
 if (!env.DEMO) {
   const faltando = [];
-  if (!env.APP_PASSWORD) faltando.push('APP_PASSWORD');
+  // Senha dispensável apenas quando o servidor aceita conexões somente do próprio aparelho.
+  if (!env.APP_PASSWORD && !env.SOMENTE_LOCAL) faltando.push('APP_PASSWORD');
   if (!strava.configurado()) faltando.push('STRAVA_CLIENT_ID', 'STRAVA_CLIENT_SECRET');
   if (faltando.length) {
     console.error(`Configuração incompleta. Defina as variáveis: ${faltando.join(', ')} (veja .env.example).`);
@@ -243,8 +244,8 @@ const servidor = http.createServer((req, res) => {
   });
 });
 
-servidor.listen(env.PORT, () => {
-  console.log(`Treino Strava em ${env.BASE_URL} (porta ${env.PORT})${env.DEMO ? ' — MODO DEMONSTRAÇÃO' : ''}`);
+servidor.listen(env.PORT, env.HOST, () => {
+  console.log(`Treino Strava em ${env.BASE_URL} (porta ${env.PORT})${env.SOMENTE_LOCAL ? ' — acesso restrito a este aparelho' : ''}${env.DEMO ? ' — MODO DEMONSTRAÇÃO' : ''}`);
   if (env.HEALTH_WEBHOOK_TOKEN && env.HEALTH_WEBHOOK_TOKEN.length < 24) console.warn('Atenção: HEALTH_WEBHOOK_TOKEN curto. Use ao menos 24 caracteres aleatórios.');
   if (env.DEMO && !auth.protecaoAtiva()) console.warn('Atenção: sem APP_PASSWORD, o acesso está aberto (aceitável apenas em demonstração).');
   if (env.DEMO) sync.executar('demonstração');
