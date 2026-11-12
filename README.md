@@ -156,7 +156,8 @@ Fluxo: `Samsung Health / Fitbit → Health Connect → app HC Webhook → POST /
 |---|---|---|
 | 1 | Usar o relógio durante a noite; o sono é registrado pelo Watch7 e sincronizado com o Samsung Health do celular | App Galaxy Wearable / Samsung Health |
 | 2 | Conferir no Samsung Health se a noite aparece (duração e estágios) | Samsung Health → Sono |
-| 3 | Autorizar o Samsung Health a gravar no Health Connect: Sono, Frequência cardíaca em repouso e, se oferecido, Variabilidade da FC | Samsung Health → ⋮ → Configurações → Health Connect (ou Configurações do celular → Segurança e privacidade → Privacidade → Health Connect → Permissões de apps) |
+| 3 | Autorizar o Samsung Health a gravar na Conexão Saúde (nome do Health Connect em português): Sono, Frequência cardíaca em repouso e, se oferecido, Variabilidade da FC | Configurações do celular → Conexão Saúde → Permissões de apps → Samsung Health |
+| 3a | Conferir se a noite chegou à Conexão Saúde | Conexão Saúde → Dados e acesso → Sono |
 | 4 | Instalar o HC Webhook e conceder leitura de Sono, FC em repouso e VFC | Google Play → HC Webhook |
 | 5 | Configurar URL, cabeçalho `Authorization` e agendamento (ex.: 07:30 e 21:00) | HC Webhook → Webhooks / Agendamento |
 | 6 | Retirar a restrição de bateria do HC Webhook, para que o envio programado não seja interrompido | Configurações → Aplicativos → HC Webhook → Bateria → Sem restrições |
@@ -165,8 +166,8 @@ Fluxo: `Samsung Health / Fitbit → Health Connect → app HC Webhook → POST /
 Pontos de atenção:
 
 - A disponibilidade da VFC no Health Connect depende da versão do Samsung Health. Sem ela, o aplicativo usa sono e FC de repouso, sem prejuízo das demais regras.
-- O Samsung Health pode levar alguns minutos para repassar ao Health Connect a noite sincronizada do relógio. Programe o envio do HC Webhook ao menos 30 minutos após o horário habitual de acordar.
-- Se a noite não aparecer no card, verificar nesta ordem: Samsung Health (noite registrada) → Health Connect (dados de sono presentes) → HC Webhook (último envio com sucesso) → card (último recebimento).
+- O Samsung Health pode levar alguns minutos para repassar à Conexão Saúde a noite sincronizada do relógio. Programe o envio do HC Webhook ao menos 30 minutos após o horário habitual de acordar.
+- Se a noite não aparecer no card, verificar nesta ordem: Samsung Health (noite registrada) → Conexão Saúde (dados de sono presentes) → HC Webhook (último envio com sucesso) → card (último recebimento).
 
 ### Regras de tratamento
 
