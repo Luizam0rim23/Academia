@@ -81,6 +81,23 @@
       </div>
 
       <aside class="coluna-lateral">
+        <section class="cartao" aria-labelledby="sono-titulo">
+          <h2 id="sono-titulo">Sono e recuperação</h2>
+          <p id="sono-fonte" class="sutil pequeno"></p>
+          <dl id="sono-indicadores" class="indicadores"></dl>
+          <div id="sono-grafico" class="grafico grafico-sono" role="img"></div>
+          <form id="form-sono" class="form-sono">
+            <p class="pequeno sutil">Registro manual (substitui o dado automático da data):</p>
+            <div class="form-sono-campos">
+              <label>Data<input name="data" type="date" required></label>
+              <label>Horas dormidas<input name="horas" type="number" min="0" max="16" step="0.25" placeholder="ex.: 7,5"></label>
+              <label>Qualidade<select name="qualidade"><option value="">—</option><option value="1">1 — péssima</option><option value="2">2 — ruim</option><option value="3">3 — regular</option><option value="4">4 — boa</option><option value="5">5 — ótima</option></select></label>
+            </div>
+            <button type="submit" class="botao">Salvar sono</button>
+          </form>
+          <p id="sono-integracao" class="pequeno sutil integracao"></p>
+        </section>
+
         <section class="cartao" aria-labelledby="ind-titulo">
           <h2 id="ind-titulo">Indicadores</h2>
           <dl id="indicadores" class="indicadores"></dl>
@@ -152,6 +169,9 @@
           </label>
           <label>FC de repouso
             <input name="restHr" type="number" min="30" max="110" required>
+          </label>
+          <label>Meta de sono por noite (horas)
+            <input name="sleepTargetHours" type="number" min="5" max="10" step="0.25" required>
           </label>
           <label>Fuso horário
             <input name="timezone" type="text" required spellcheck="false">

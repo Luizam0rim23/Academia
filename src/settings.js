@@ -12,6 +12,7 @@ const PADRAO = {
   maxConsecutiveDays: 6,      // dias seguidos de atividade antes de exigir descanso
   maxHr: null,                // FC máxima (opcional, melhora o cálculo de carga)
   restHr: 60,                 // FC de repouso
+  sleepTargetHours: 7.5,      // meta de sono por noite (horas)
   timezone: 'America/Sao_Paulo',
 };
 
@@ -46,6 +47,10 @@ function sanitizar(entrada = {}, base = PADRAO) {
   if ('maxConsecutiveDays' in e) s.maxConsecutiveDays = inteiro(e.maxConsecutiveDays, 2, 14, s.maxConsecutiveDays);
   if ('restHr' in e) s.restHr = inteiro(e.restHr, 30, 110, s.restHr);
   if ('maxHr' in e) s.maxHr = e.maxHr === null || e.maxHr === '' ? null : inteiro(e.maxHr, 120, 230, s.maxHr);
+  if ('sleepTargetHours' in e) {
+    const h = Math.round(Number(e.sleepTargetHours) * 4) / 4;
+    if (Number.isFinite(h) && h >= 5 && h <= 10) s.sleepTargetHours = h;
+  }
   if ('timezone' in e && typeof e.timezone === 'string' && fusoValido(e.timezone)) s.timezone = e.timezone;
   return s;
 }

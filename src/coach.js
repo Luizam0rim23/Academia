@@ -6,6 +6,7 @@ const {
   FOCOS, DIVISOES, NOMES_DIVISAO, GRUPOS, MODELOS, SUBSTITUICOES_PERNAS,
   NOMES_INTENSIDADE, prescrever,
 } = require('./exercises');
+const saudeMod = require('./saude');
 
 const DIA_MS = 86400000;
 const HORA_MS = 3600000;
@@ -334,8 +335,9 @@ const OBS_OBJETIVO = {
   saude: 'Priorize execução e amplitude; aumente a carga de forma gradual, sem chegar à falha.',
 };
 
-function decidir(lista, config, ref) {
+function decidir(lista, config, ref, saude = null) {
   const m = calcularMetricas(lista, config, ref);
+  const rec = saude ? saudeMod.avaliar(saude, m.hoje, config) : null;
   const divisao = divisaoEfetiva(config);
   const ordem = DIVISOES[divisao];
   const motivos = [];
@@ -355,6 +357,12 @@ function decidir(lista, config, ref) {
   } else if (m.sessoesForca7d >= config.gymDaysPerWeek) {
     foco = 'recuperacao';
     motivos.push(`Meta de ${config.gymDaysPerWeek} treinos de academia já cumprida nos últimos 7 dias (${m.sessoesForca7d} sessões).`);
+  }
+
+  // 1b) Sono e marcadores fisiológicos críticos
+  if (!foco && rec && rec.forcarRecuperacao) {
+    foco = 'recuperacao';
+    motivos.push('Recuperação ativa definida pelos dados de sono e recuperação do dia.');
   }
 
   // 2) Escolha do foco pela rotação e recuperação de cada grupo
@@ -415,6 +423,11 @@ function decidir(lista, config, ref) {
       nivel = Math.max(0, nivel - 1);
       motivos.push(`Carga de ontem elevada (${Math.round(m.cargaOntem)} contra média diária de ${Math.round(m.mediaDiaria)}): intensidade reduzida em um nível.`);
     }
+    if (rec && rec.reducaoNivel) nivel = Math.max(0, nivel - rec.reducaoNivel);
+  }
+  if (rec) {
+    motivos.push(...rec.motivos);
+    alertas.push(...rec.alertas);
   }
 
   const variante = (m.contagemFoco[foco] || 0) % 2 === 0 ? 'A' : 'B';
@@ -442,6 +455,7 @@ function decidir(lista, config, ref) {
     motivos,
     alertas,
     observacoes,
+    recuperacao: rec ? { disponivel: rec.disponivel, ...rec.resumo } : null,
     metricas: m,
   };
 }
@@ -484,7 +498,7 @@ function sessaoProjetada(plano, ref) {
   };
 }
 
-function construirPainel(atividades, config, marcacoes = {}, agora = Date.now()) {
+function construirPainel(atividades, config, marcacoes = {}, agora = Date.now(), saude = null) {
   const tz = config.timezone;
   const hoje = diaLocal(agora, tz);
   const refHoje = Math.max(agora, instanteLocal(hoje, config.trainingHour, tz));
@@ -497,8 +511,10 @@ function construirPainel(atividades, config, marcacoes = {}, agora = Date.now())
     referencia = 'amanha';
     ref = instanteLocal(somarDias(hoje, 1), config.trainingHour, tz);
   }
-  const plano = decidir(lista, config, ref);
+  // Dados de sono e recuperação só se aplicam ao dia corrente.
+  const plano = decidir(lista, config, ref, referencia === 'hoje' ? saude : null);
   plano.referencia = referencia;
+  const recuperacaoHoje = saude ? saudeMod.avaliar(saude, hoje, config) : null;
   plano.treinoHojeRegistrado = forcaHoje.map((a) => ({ nome: a.name, foco: a._foco }));
 
   // Projeção dos próximos dias (assumindo que o plano será cumprido)
@@ -534,7 +550,9 @@ function construirPainel(atividades, config, marcacoes = {}, agora = Date.now())
       origemFoco: a._origemFoco || null,
     }));
 
-  return { hoje, plano, projecao, metricas, recentes };
+  const recuperacao = recuperacaoHoje ? { disponivel: recuperacaoHoje.disponivel, ...recuperacaoHoje.resumo } : null;
+  delete plano.recuperacao;
+  return { hoje, plano, projecao, metricas, recentes, recuperacao };
 }
 
 function limparEnriquecimento(a) {

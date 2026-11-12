@@ -10,6 +10,7 @@ const auth = require('./src/auth');
 const strava = require('./src/strava');
 const sync = require('./src/sync');
 const { construirPainel } = require('./src/coach');
+const saude = require('./src/saude');
 const { FOCOS_MARCAVEIS, FOCOS, NOMES_DIVISAO } = require('./src/exercises');
 
 // ------------------------------------------------------------- validação de inicialização
@@ -72,14 +73,14 @@ function lerCorpo(req, limite = 16 * 1024) {
   });
 }
 
-async function lerJson(req) {
+async function lerJson(req, limite) {
   if (!String(req.headers['content-type'] || '').startsWith('application/json')) {
     const e = new Error('Content-Type deve ser application/json.');
     e.status = 415;
     throw e;
   }
   try {
-    return JSON.parse(await lerCorpo(req) || '{}');
+    return JSON.parse(await lerCorpo(req, limite) || '{}');
   } catch {
     const e = new Error('JSON inválido.');
     e.status = 400;
@@ -100,13 +101,19 @@ function montarPainel() {
     protecao: auth.protecaoAtiva(),
     estadoSync: sync.estado(),
     config,
+    saudeIntegracao: {
+      webhookAtivo: Boolean(env.HEALTH_WEBHOOK_TOKEN),
+      url: `${env.BASE_URL}/api/saude/webhook`,
+      ultimoRecebimento: saude.ler().ultimoRecebimento,
+      origem: saude.ler().origem,
+    },
     opcoes: {
       focos: FOCOS_MARCAVEIS.map((id) => ({ id, nome: FOCOS[id].nome })),
       divisoes: NOMES_DIVISAO,
     },
   };
   if (!conectado) return base;
-  return { ...base, ...construirPainel(atividades, config, marcacoes) };
+  return { ...base, ...construirPainel(atividades, config, marcacoes, Date.now(), saude.ler()) };
 }
 
 // ------------------------------------------------------------- rotas
@@ -138,6 +145,14 @@ async function rotear(req, res) {
   if (caminho === '/cron/sync' && (metodo === 'POST' || metodo === 'GET')) {
     if (!auth.segredoCronValido(req, url)) return json(res, 401, { erro: 'Não autorizado.' });
     return json(res, 200, await sync.executar('agendador externo'));
+  }
+
+  // Recebimento de dados de saúde do celular (Health Connect via app HC Webhook).
+  if (caminho === '/api/saude/webhook' && metodo === 'POST') {
+    if (!auth.tokenSaudeValido(req)) return json(res, 401, { erro: 'Não autorizado.' });
+    const contagem = saude.registrarWebhook(await lerJson(req, 8 * 1024 * 1024));
+    console.log(`[saude] recebidos: ${contagem.sono} sessões de sono, ${contagem.fcRepouso} FC repouso, ${contagem.vfc} VFC`);
+    return json(res, 200, { ok: true, ...contagem });
   }
 
   // ---- a partir daqui, apenas com sessão válida
@@ -202,6 +217,11 @@ async function rotear(req, res) {
     return json(res, 200, montarPainel());
   }
 
+  if (metodo === 'PUT' && caminho === '/api/saude/sono') {
+    saude.registrarManual(await lerJson(req));
+    return json(res, 200, montarPainel());
+  }
+
   if (metodo === 'POST' && caminho === '/api/desconectar') {
     await lerJson(req);
     if (!env.DEMO) await strava.desconectar();
@@ -222,6 +242,7 @@ const servidor = http.createServer((req, res) => {
 
 servidor.listen(env.PORT, () => {
   console.log(`Treino Strava em ${env.BASE_URL} (porta ${env.PORT})${env.DEMO ? ' — MODO DEMONSTRAÇÃO' : ''}`);
+  if (env.HEALTH_WEBHOOK_TOKEN && env.HEALTH_WEBHOOK_TOKEN.length < 24) console.warn('Atenção: HEALTH_WEBHOOK_TOKEN curto. Use ao menos 24 caracteres aleatórios.');
   if (env.DEMO && !auth.protecaoAtiva()) console.warn('Atenção: sem APP_PASSWORD, o acesso está aberto (aceitável apenas em demonstração).');
   if (env.DEMO) sync.executar('demonstração');
   sync.iniciarAgenda();

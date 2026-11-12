@@ -34,4 +34,30 @@ function gerar(agora = Date.now()) {
   return atividades;
 }
 
-module.exports = { gerar };
+// Payload no formato do app HC Webhook (Health Connect), com noite anterior curta para demonstração.
+function gerarSaude(agora = Date.now()) {
+  const sleep = [];
+  const resting = [];
+  const hrv = [];
+  for (let d = 30; d >= 0; d--) {
+    const dia = new Date(agora - d * 86400000);
+    const fim = Date.UTC(dia.getUTCFullYear(), dia.getUTCMonth(), dia.getUTCDate(), 9, 40); // 06:40 em São Paulo
+    const horas = d === 0 ? 6.3 : 6.6 + ((d * 53) % 17) / 10;
+    const dur = Math.round(horas * 3600);
+    const inicio = fim - (dur + 1200) * 1000;
+    const fatias = [['STAGE_TYPE_LIGHT', 0.5], ['STAGE_TYPE_DEEP', 0.2], ['STAGE_TYPE_REM', 0.22], ['STAGE_TYPE_AWAKE', 0.08]];
+    let t = inicio;
+    const stages = fatias.map(([stage, f]) => {
+      const seg = Math.round((dur + 1200) * f);
+      const e = { stage, start_time: new Date(t).toISOString(), end_time: new Date(t + seg * 1000).toISOString(), duration_seconds: seg };
+      t += seg * 1000;
+      return e;
+    });
+    sleep.push({ session_end_time: new Date(fim).toISOString(), duration_seconds: dur + 1200, stages });
+    resting.push({ bpm: d === 0 ? 54 : 51 + ((d * 7) % 4), time: new Date(fim + 600000).toISOString() });
+    hrv.push({ rmssd_millis: d === 0 ? 49 : 55 + ((d * 11) % 9), time: new Date(fim - 3600000).toISOString() });
+  }
+  return { timestamp: new Date(agora).toISOString(), app_version: 'demo', timezone: 'UTC', sleep, resting_heart_rate: resting, heart_rate_variability: hrv };
+}
+
+module.exports = { gerar, gerarSaude };

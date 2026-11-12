@@ -27,6 +27,7 @@ async function executar(origem = 'manual', opcoes = {}) {
       if (env.DEMO) {
         const atividades = demo.gerar();
         store.gravar('atividades', atividades);
+        require('./saude').registrarWebhook(demo.gerarSaude());
         resultado = { lidas: atividades.length, novas: 0, total: atividades.length };
       } else {
         resultado = await strava.sincronizar(opcoes);

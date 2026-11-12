@@ -81,6 +81,7 @@
     $('data-hoje').textContent = fmtDataLonga(p.hoje);
     renderizarPlano(p.plano);
     renderizarMotivos(p.plano);
+    renderizarSono(p.recuperacao, p.saudeIntegracao, p.hoje);
     renderizarIndicadores(p.metricas, p.config);
     renderizarProjecao(p.projecao);
     renderizarGrupos(p.metricas.grupos);
@@ -162,6 +163,64 @@
     for (const m of pl.motivos) {
       const descartado = m.startsWith('Descartado');
       lista.append(el('li', { class: descartado ? 'descartado' : '' }, m));
+    }
+  }
+
+  const fmtSono = (seg) => { if (seg === null || seg === undefined) return '—'; const m = Math.round(seg / 60); return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`; };
+
+  function renderizarSono(r, integ, hoje) {
+    const fonte = $('sono-fonte');
+    fonte.textContent = integ.ultimoRecebimento
+      ? `Fonte: ${integ.origem || 'Health Connect'} · último recebimento ${fmtRelativo(integ.ultimoRecebimento)}.`
+      : 'Nenhum dado automático recebido. Use o registro manual ou configure a integração com o celular.';
+
+    const dl = limpar($('sono-indicadores'));
+    const n = r && r.noite;
+    const meta = r ? r.metaSeg : 0;
+    const classeSono = (seg) => (seg === null || seg === undefined ? '' : seg < 6 * 3600 ? 'risco' : seg < meta - 1800 ? 'atencao' : 'ideal');
+    const itens = [
+      { rotulo: 'Última noite', valor: n ? fmtSono(n.dormidoSeg) : '—', sub: n ? (n.comEstagios ? `profundo ${fmtSono(n.profundoSeg)} · REM ${fmtSono(n.remSeg)}` : n.origem === 'manual' ? `registro manual${n.qualidade ? ` · qualidade ${n.qualidade}/5` : ''}` : 'sem estágios') : 'sem registro', classe: n ? classeSono(n.dormidoSeg) : '' },
+      { rotulo: 'Média 7 noites', valor: r && r.media7Seg !== null ? fmtSono(r.media7Seg) : '—', sub: r && r.debito7Seg ? `débito ${fmtSono(r.debito7Seg)} na semana` : `meta ${fmtSono(meta)}`, classe: r && r.media7Seg !== null ? classeSono(r.media7Seg) : '' },
+      { rotulo: 'FC de repouso', valor: r && r.fcRepouso ? `${r.fcRepouso.valor} bpm` : '—', sub: r && r.fcRepouso && r.fcRepouso.base !== null ? `base ${r.fcRepouso.base} bpm` : 'sem linha de base', classe: r && r.fcRepouso && r.fcRepouso.base !== null ? (r.fcRepouso.valor - r.fcRepouso.base >= 5 ? 'atencao' : 'ideal') : '' },
+      { rotulo: 'VFC (RMSSD)', valor: r && r.vfc ? `${r.vfc.valor} ms` : '—', sub: r && r.vfc && r.vfc.base !== null ? `base ${r.vfc.base} ms` : 'sem linha de base', classe: r && r.vfc && r.vfc.base !== null ? (r.vfc.valor / r.vfc.base <= 0.85 ? 'atencao' : 'ideal') : '' },
+    ];
+    for (const i of itens) dl.append(el('div', { class: `indicador ${i.classe}` }, el('dt', {}, i.rotulo), el('dd', {}, i.valor, el('small', {}, i.sub))));
+
+    // Gráfico de 14 noites
+    const g = limpar($('sono-grafico'));
+    const hist = r ? r.historico : [];
+    g.hidden = !hist.some((h) => h.dormidoSeg !== null);
+    if (!g.hidden) {
+      const ns = 'http://www.w3.org/2000/svg';
+      const S = (tag, a) => { const x = document.createElementNS(ns, tag); for (const [k, v] of Object.entries(a)) x.setAttribute(k, v); return x; };
+      const L = 320, A = 90, mb = 14, max = 10 * 3600, lw = L / hist.length;
+      const svg = S('svg', { viewBox: `0 0 ${L} ${A}`, preserveAspectRatio: 'none' });
+      hist.forEach((h, i) => {
+        if (h.dormidoSeg === null) return;
+        const alt = Math.min(1, h.dormidoSeg / max) * (A - mb);
+        const cls = h.dormidoSeg < 6 * 3600 ? 'sono-critico' : h.dormidoSeg < meta - 1800 ? 'sono-curto' : 'sono-ok';
+        const rect = S('rect', { x: i * lw + 1.5, y: A - mb - alt, width: lw - 3, height: alt, rx: 2, class: `barra ${cls}` });
+        const t = document.createElementNS(ns, 'title'); t.textContent = `${fmtData(h.dia)}: ${fmtSono(h.dormidoSeg)}`; rect.append(t);
+        svg.append(rect);
+      });
+      const yMeta = A - mb - (meta / max) * (A - mb);
+      svg.append(S('line', { x1: 0, x2: L, y1: yMeta, y2: yMeta, class: 'meta-linha' }));
+      const lbl = S('text', { x: L - 2, y: A - 2, 'text-anchor': 'end', class: 'eixo' }); lbl.textContent = 'últimas 14 noites · tracejado = meta'; svg.append(lbl);
+      g.setAttribute('aria-label', 'Horas dormidas nas últimas 14 noites, comparadas com a meta.');
+      g.append(svg);
+    }
+
+    const f = $('form-sono');
+    if (!f.contains(document.activeElement)) {
+      f.elements.data.value = hoje;
+      f.elements.data.max = hoje;
+    }
+
+    const integEl = limpar($('sono-integracao'));
+    if (integ.webhookAtivo) {
+      integEl.append('Integração automática ativa. Endereço para o app HC Webhook: ', el('code', {}, integ.url), ' (cabeçalho Authorization: Bearer <token>).');
+    } else {
+      integEl.append('Integração automática desativada: defina HEALTH_WEBHOOK_TOKEN no servidor e configure o app HC Webhook no celular (ver README).');
     }
   }
 
@@ -295,6 +354,18 @@
       document.activeElement.blur();
       renderizar(await api('PUT', '/api/config', dados));
       aviso('Configurações salvas. Recomendação recalculada.');
+    } catch (err) { aviso(err.message, true); }
+  });
+
+  $('form-sono').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const d = Object.fromEntries(new FormData(form));
+    try {
+      document.activeElement.blur();
+      renderizar(await api('PUT', '/api/saude/sono', { data: d.data, horas: d.horas === '' ? null : Number(String(d.horas).replace(',', '.')), qualidade: d.qualidade || null }));
+      aviso(d.horas === '' ? 'Registro manual removido.' : 'Sono registrado. Recomendação recalculada.');
+      form.elements.horas.value = '';
     } catch (err) { aviso(err.message, true); }
   });
 

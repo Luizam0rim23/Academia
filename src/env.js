@@ -29,6 +29,7 @@ module.exports = {
   APP_PASSWORD: process.env.APP_PASSWORD || '',
   SESSION_SECRET: process.env.SESSION_SECRET || '',
   CRON_SECRET: process.env.CRON_SECRET || '',
+  HEALTH_WEBHOOK_TOKEN: process.env.HEALTH_WEBHOOK_TOKEN || '',
   TRUST_PROXY: process.env.TRUST_PROXY === '1',
   DATA_DIR: process.env.DATA_DIR || path.join(__dirname, '..', 'data'),
 };

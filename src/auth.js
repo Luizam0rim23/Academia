@@ -106,7 +106,14 @@ function segredoCronValido(req, url) {
   return crypto.timingSafeEqual(sha(informado), sha(env.CRON_SECRET));
 }
 
+function tokenSaudeValido(req) {
+  if (!env.HEALTH_WEBHOOK_TOKEN) return false;
+  const informado = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.headers['x-api-key'] || '');
+  return crypto.timingSafeEqual(sha(informado), sha(env.HEALTH_WEBHOOK_TOKEN));
+}
+
 module.exports = {
+  tokenSaudeValido,
   protecaoAtiva, senhaCorreta, cookieSessao, cookieEncerrarSessao, sessaoValida,
   bloqueado, registrarFalha, limparFalhas,
   novoEstadoOAuth, estadoOAuthValido, cookieLimparOAuth, segredoCronValido,

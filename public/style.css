@@ -220,6 +220,19 @@ p { margin: 0 0 10px; }
 .legenda { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: 0.8rem; color: var(--texto-2); }
 .legenda i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
 
+/* ---------- sono */
+.grafico-sono { margin-top: 12px; }
+.grafico .barra.sono-ok { fill: var(--barra-forca); }
+.grafico .barra.sono-curto { fill: var(--atencao); }
+.grafico .barra.sono-critico { fill: var(--risco); }
+.grafico .meta-linha { stroke: var(--texto-2); stroke-dasharray: 4 3; stroke-width: 1; }
+.form-sono { margin-top: 14px; border-top: 1px solid var(--borda); padding-top: 12px; }
+.form-sono-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.form-sono label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--texto-2); min-width: 0; }
+.form-sono input, .form-sono select { width: 100%; min-width: 0; }
+.integracao { margin: 12px 0 0; overflow-wrap: anywhere; }
+.integracao code { font-size: 0.8rem; background: var(--superficie-2); padding: 1px 5px; border-radius: 4px; }
+
 /* ---------- configurações */
 details summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; }
 details summary::-webkit-details-marker { display: none; }
