@@ -218,9 +218,9 @@
 
     const integEl = limpar($('sono-integracao'));
     if (integ.webhookAtivo) {
-      integEl.append('Integração automática ativa. Endereço para o app HC Webhook: ', el('code', {}, integ.url), ' (cabeçalho Authorization: Bearer <token>).');
+      integEl.append('Integração automática ativa. Endereço para o app do celular: ', el('code', {}, integ.url), ' (Life Dashboard Companion: segredo de assinatura = token; HC Webhook: cabeçalho Authorization: Bearer <token>).');
     } else {
-      integEl.append('Integração automática desativada: defina HEALTH_WEBHOOK_TOKEN no servidor e configure o app HC Webhook no celular (ver README).');
+      integEl.append('Integração automática desativada: defina HEALTH_WEBHOOK_TOKEN no servidor e configure o app Life Dashboard Companion ou HC Webhook no celular (ver README).');
     }
   }
 

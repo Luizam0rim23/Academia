@@ -106,10 +106,18 @@ function segredoCronValido(req, url) {
   return crypto.timingSafeEqual(sha(informado), sha(env.CRON_SECRET));
 }
 
-function tokenSaudeValido(req) {
-  if (!env.HEALTH_WEBHOOK_TOKEN) return false;
+// Aceita token Bearer (HC Webhook e outros) ou assinatura HMAC-SHA256 do corpo
+// no cabeçalho X-Signature: sha256=<hex> (Life Dashboard Companion), usando o mesmo segredo.
+function tokenSaudeValido(req, corpoBruto = '') {
+  const segredoSaude = env.HEALTH_WEBHOOK_TOKEN.trim();
+  if (!segredoSaude) return false;
+  const assinatura = String(req.headers['x-signature'] || '');
+  if (assinatura) {
+    const esperado = `sha256=${crypto.createHmac('sha256', segredoSaude).update(corpoBruto).digest('hex')}`;
+    return crypto.timingSafeEqual(sha(assinatura.toLowerCase()), sha(esperado));
+  }
   const informado = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.headers['x-api-key'] || '');
-  return crypto.timingSafeEqual(sha(informado), sha(env.HEALTH_WEBHOOK_TOKEN));
+  return crypto.timingSafeEqual(sha(informado.trim()), sha(segredoSaude));
 }
 
 module.exports = {

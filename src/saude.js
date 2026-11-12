@@ -1,7 +1,7 @@
 'use strict';
 
 // Dados de saúde (sono, FC de repouso, VFC) recebidos do celular via Health Connect
-// (app "HC Webhook") ou registrados manualmente na página.
+// (apps Life Dashboard Companion ou HC Webhook) ou registrados manualmente na página.
 const store = require('./store');
 
 const RETENCAO_DIAS = 90;
@@ -102,14 +102,15 @@ function registrarWebhook(payload, agora = Date.now()) {
   }
   for (const v of Array.isArray(payload.heart_rate_variability) ? payload.heart_rate_variability : []) {
     const t = Date.parse(v.time);
-    const ms = Number(v.rmssd_millis ?? v.avg);
+    const ms = Number(v.rmssd_millis ?? v.heart_rate_variability_millis ?? v.avg);
     if (!Number.isFinite(t) || !(ms > 0 && ms < 400)) continue;
     dados.vfc[new Date(t).toISOString()] = ms;
     contagem.vfc++;
   }
 
   dados.ultimoRecebimento = new Date(agora).toISOString();
-  dados.origem = `Health Connect${payload.app_version ? ` (HC Webhook ${String(payload.app_version).slice(0, 20)})` : ''}`;
+  const app = payload.sequence !== undefined || payload.daily_totals !== undefined ? 'Life Dashboard Companion' : 'HC Webhook';
+  dados.origem = `Health Connect (${app}${payload.app_version ? ` ${String(payload.app_version).slice(0, 20)}` : ''})`;
   store.gravar('saude', podar(dados, agora));
   return contagem;
 }

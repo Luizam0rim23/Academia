@@ -34,7 +34,7 @@ function gerar(agora = Date.now()) {
   return atividades;
 }
 
-// Payload no formato do app HC Webhook (Health Connect), com noite anterior curta para demonstração.
+// Payload no formato dos apps de envio do Health Connect, com noite anterior curta para demonstração.
 function gerarSaude(agora = Date.now()) {
   const sleep = [];
   const resting = [];

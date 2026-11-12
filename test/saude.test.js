@@ -92,6 +92,27 @@ test('sessões sobrepostas da mesma noite não são somadas; cochilo é somado',
   assert.equal(p.recuperacao.noite.dormidoSeg, 8 * H); // 7,5 h (maior sessão) + 0,5 h de cochilo
 });
 
+test('aceita o formato do Life Dashboard Companion', () => {
+  store.remover('saude');
+  const fim = instanteLocal('2026-11-12', 6, TZ) + 30 * 60000;
+  const c = saude.registrarWebhook({
+    timestamp: '2026-11-12T10:00:00Z', app_version: '1.30.1', source: 'health_connect', sequence: 12, daily_totals: {},
+    sleep: [{ uuid: 'a1', source: 'com.sec.android.app.shealth', session_end_time: new Date(fim).toISOString(), duration_seconds: 8 * H, stages: [
+      { stage: 'light', duration_seconds: 4 * H }, { stage: 'deep', duration_seconds: 1.5 * H },
+      { stage: 'rem', duration_seconds: 1.5 * H }, { stage: 'awake_in_bed', duration_seconds: 0.5 * H }, { stage: 'out_of_bed', duration_seconds: 0.5 * H },
+    ] }],
+    resting_heart_rate: [{ uuid: 'b1', bpm: 55, time: new Date(fim + 600000).toISOString() }],
+    heart_rate_variability: [{ uuid: 'c1', heart_rate_variability_millis: 47.5, time: new Date(fim - H * 1000).toISOString() }],
+  }, AGORA);
+  assert.deepEqual(c, { sono: 1, fcRepouso: 1, vfc: 1 });
+  const d = saude.ler();
+  assert.match(d.origem, /Life Dashboard Companion 1\.30\.1/);
+  const p = construirPainel([], cfg(), {}, AGORA, d);
+  assert.equal(p.recuperacao.noite.dormidoSeg, 7 * H);
+  assert.equal(p.recuperacao.noite.profundoSeg, 1.5 * H);
+  assert.equal(p.recuperacao.vfc.valor, 48);
+});
+
 test('payload inválido é rejeitado', () => {
   assert.throws(() => saude.registrarWebhook([1, 2]), /inválido/);
 });

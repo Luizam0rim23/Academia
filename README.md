@@ -134,21 +134,32 @@ sudo systemctl enable --now treino-strava
 | Samsung Health | Não possui API web; compartilha dados com o Health Connect no celular | Via Health Connect |
 | Google Fit | API descontinuada pelo Google (fim do suporte em 2026; novos cadastros bloqueados desde 05/2024) | Não utilizada |
 | Fitbit / Pixel Watch | Grava sono no Health Connect | Via Health Connect |
-| Health Connect (Android) | Repositório de saúde do celular, sem acesso em nuvem | Lido pelo app **HC Webhook**, que envia os dados a este servidor |
+| Health Connect (Android) | Repositório de saúde do celular, sem acesso em nuvem | Lido por um app de envio, que remete os dados a este servidor |
 
-Fluxo: `Samsung Health / Fitbit → Health Connect → app HC Webhook → POST /api/saude/webhook → recomendação do dia`.
+Fluxo: `Samsung Health / Fitbit → Health Connect → app de envio → POST /api/saude/webhook → recomendação do dia`.
+
+### App de envio: opções
+
+| App | Custo | Instalação | Autenticação aceita pelo servidor |
+|---|---|---|---|
+| **Life Dashboard Companion** (recomendado) | Gratuito pelo GitHub, F-Droid ou Obtainium (na Google Play é pago) | APK `app-release.apk` em github.com/owen282000/life-dashboard-companion-app/releases, F-Droid ou Obtainium | Assinatura HMAC-SHA256 (`X-Signature`) com o segredo = `HEALTH_WEBHOOK_TOKEN` |
+| HC Webhook | Pago na Google Play (`com.hcwebhook.app`); versão beta pelo Obtainium (github.com/mcnaveen/health-connect-webhook) | Google Play ou Obtainium | Cabeçalho `Authorization: Bearer <HEALTH_WEBHOOK_TOKEN>` |
+| Registro manual | Gratuito | Card **Sono e recuperação** da página | Sessão do aplicativo |
+
+O servidor aceita os dois formatos automaticamente (sono com estágios, FC de repouso e VFC).
 
 ### Configuração
 
 1. **Servidor**: gerar o token (`openssl rand -hex 32`), informar em `HEALTH_WEBHOOK_TOKEN` e reiniciar.
-2. **Samsung Health** (ou app Fitbit): em Configurações → Health Connect, permitir o compartilhamento de **Sono**, **Frequência cardíaca em repouso** e, se disponível, **Variabilidade da frequência cardíaca**. Os nomes dos menus variam por versão.
-3. **App HC Webhook** (Google Play, `com.hcwebhook.app`, código aberto):
+2. **Samsung Health** (ou app Fitbit): permitir a gravação de **Sono**, **Frequência cardíaca em repouso** e, se disponível, **Variabilidade da frequência cardíaca** na Conexão Saúde (Health Connect).
+3. **App de envio** (Life Dashboard Companion):
+   - instalar o APK gratuito (GitHub Releases, F-Droid ou Obtainium); o Android pedirá autorização para instalar apps de fonte externa;
    - conceder leitura apenas de Sono, FC em repouso e VFC (não habilitar FC contínua, que gera grande volume e não é utilizada);
-   - URL do webhook: `https://SEU_DOMINIO/api/saude/webhook`;
-   - cabeçalho personalizado: `Authorization` = `Bearer <HEALTH_WEBHOOK_TOKEN>`;
-   - agendamento: modo programado com um envio após acordar (ex.: 07:30) e outro à noite, ou intervalo de 60 min;
-   - executar "Sync Now" e confirmar, no card **Sono e recuperação**, o horário do "último recebimento".
-4. **Sem celular Android ou sem o app**: usar o registro manual no próprio card (horas dormidas e qualidade de 1 a 5).
+   - cadastrar o destino `https://SEU_DOMINIO/api/saude/webhook` e informar como segredo de assinatura (signing secret) o mesmo valor de `HEALTH_WEBHOOK_TOKEN`;
+   - agendamento: horários fixos com um envio após acordar (ex.: 07:30) e outro à noite, ou intervalo de 60 min;
+   - fazer um envio manual e confirmar, no card **Sono e recuperação**, o horário do "último recebimento".
+4. **Alternativa HC Webhook**: mesmo procedimento, usando o cabeçalho `Authorization` = `Bearer <HEALTH_WEBHOOK_TOKEN>` em vez da assinatura.
+5. **Sem app de envio**: usar o registro manual no próprio card (horas dormidas e qualidade de 1 a 5).
 
 ### Roteiro para Galaxy S26 + Galaxy Watch7
 
@@ -158,16 +169,16 @@ Fluxo: `Samsung Health / Fitbit → Health Connect → app HC Webhook → POST /
 | 2 | Conferir no Samsung Health se a noite aparece (duração e estágios) | Samsung Health → Sono |
 | 3 | Autorizar o Samsung Health a gravar na Conexão Saúde (nome do Health Connect em português): Sono, Frequência cardíaca em repouso e, se oferecido, Variabilidade da FC | Configurações do celular → Conexão Saúde → Permissões de apps → Samsung Health |
 | 3a | Conferir se a noite chegou à Conexão Saúde | Conexão Saúde → Dados e acesso → Sono |
-| 4 | Instalar o HC Webhook e conceder leitura de Sono, FC em repouso e VFC | Google Play → HC Webhook |
-| 5 | Configurar URL, cabeçalho `Authorization` e agendamento (ex.: 07:30 e 21:00) | HC Webhook → Webhooks / Agendamento |
-| 6 | Retirar a restrição de bateria do HC Webhook, para que o envio programado não seja interrompido | Configurações → Aplicativos → HC Webhook → Bateria → Sem restrições |
-| 7 | Executar "Sync Now" e confirmar o "último recebimento" no card Sono e recuperação | HC Webhook / página do aplicativo |
+| 4 | Instalar o Life Dashboard Companion (APK gratuito) e conceder leitura de Sono, FC em repouso e VFC | GitHub Releases / F-Droid / Obtainium |
+| 5 | Cadastrar o destino (URL + segredo de assinatura) e o agendamento (ex.: 07:30 e 21:00) | Life Dashboard Companion → destinos / agendamento |
+| 6 | Retirar a restrição de bateria do app de envio, para que o envio programado não seja interrompido | Configurações → Aplicativos → Life Dashboard Companion → Bateria → Sem restrições |
+| 7 | Fazer um envio manual e confirmar o "último recebimento" no card Sono e recuperação | App de envio / página do aplicativo |
 
 Pontos de atenção:
 
 - A disponibilidade da VFC no Health Connect depende da versão do Samsung Health. Sem ela, o aplicativo usa sono e FC de repouso, sem prejuízo das demais regras.
-- O Samsung Health pode levar alguns minutos para repassar à Conexão Saúde a noite sincronizada do relógio. Programe o envio do HC Webhook ao menos 30 minutos após o horário habitual de acordar.
-- Se a noite não aparecer no card, verificar nesta ordem: Samsung Health (noite registrada) → Conexão Saúde (dados de sono presentes) → HC Webhook (último envio com sucesso) → card (último recebimento).
+- O Samsung Health pode levar alguns minutos para repassar à Conexão Saúde a noite sincronizada do relógio. Programe o envio do app ao menos 30 minutos após o horário habitual de acordar.
+- Se a noite não aparecer no card, verificar nesta ordem: Samsung Health (noite registrada) → Conexão Saúde (dados de sono presentes) → app de envio (último envio com sucesso) → card (último recebimento).
 
 ### Regras de tratamento
 
@@ -198,7 +209,7 @@ npm test              # testes automatizados do motor de recomendação e do mó
 | Acesso à página | Senha obrigatória, sessão em cookie assinado (HttpOnly, SameSite, Secure em HTTPS), limite de 5 tentativas a cada 15 min. |
 | Strava | Somente leitura. Tokens renovados automaticamente e armazenados em `DATA_DIR` com permissão restrita (600). |
 | OAuth | Parâmetro `state` validado contra CSRF; escopo insuficiente é recusado. |
-| Webhook de saúde | Token obrigatório (Bearer), comparação em tempo constante, limite de 8 MB por envio, valores fora de faixa descartados. |
+| Webhook de saúde | Token obrigatório (Bearer) ou assinatura HMAC-SHA256 do corpo, comparação em tempo constante, limite de 8 MB por envio, valores fora de faixa descartados. |
 | Retenção | Atividades dos últimos 180 dias; dados de saúde dos últimos 90 dias. "Desconectar Strava" revoga o acesso e apaga as atividades do servidor. |
 | Cabeçalhos | CSP restritiva, `X-Frame-Options: DENY`, `nosniff`, `no-referrer`. |
 | Dependências | Nenhuma (apenas Node.js padrão). |

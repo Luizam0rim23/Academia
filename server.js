@@ -147,10 +147,13 @@ async function rotear(req, res) {
     return json(res, 200, await sync.executar('agendador externo'));
   }
 
-  // Recebimento de dados de saúde do celular (Health Connect via app HC Webhook).
+  // Recebimento de dados de saúde do celular (Health Connect via Life Dashboard Companion ou HC Webhook).
   if (caminho === '/api/saude/webhook' && metodo === 'POST') {
-    if (!auth.tokenSaudeValido(req)) return json(res, 401, { erro: 'Não autorizado.' });
-    const contagem = saude.registrarWebhook(await lerJson(req, 8 * 1024 * 1024));
+    const bruto = await lerCorpo(req, 8 * 1024 * 1024);
+    if (!auth.tokenSaudeValido(req, bruto)) return json(res, 401, { erro: 'Não autorizado.' });
+    let corpo;
+    try { corpo = JSON.parse(bruto || '{}'); } catch { return json(res, 400, { erro: 'JSON inválido.' }); }
+    const contagem = saude.registrarWebhook(corpo);
     console.log(`[saude] recebidos: ${contagem.sono} sessões de sono, ${contagem.fcRepouso} FC repouso, ${contagem.vfc} VFC`);
     return json(res, 200, { ok: true, ...contagem });
   }
