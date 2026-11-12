@@ -122,7 +122,7 @@ function montarPainel() {
     config,
     saudeIntegracao: {
       webhookAtivo: Boolean(env.HEALTH_WEBHOOK_TOKEN),
-      url: env.SOMENTE_LOCAL ? `http://127.0.0.1:${env.PORT}/api/saude/webhook` : (env.WEBHOOK_URL || `${env.BASE_URL}/api/saude/webhook`),
+      url: env.WEBHOOK_URL || (env.SOMENTE_LOCAL ? `http://127.0.0.1:${env.PORT}/api/saude/webhook` : `${env.BASE_URL}/api/saude/webhook`),
       // O segredo é exibido (para cópia) no modo local ou quando a página exige senha; o painel só é servido a sessões válidas.
       token: (env.SOMENTE_LOCAL || auth.protecaoAtiva()) && env.HEALTH_WEBHOOK_TOKEN ? env.HEALTH_WEBHOOK_TOKEN : undefined,
       ultimoRecebimento: saude.ler().ultimoRecebimento,

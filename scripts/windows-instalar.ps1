@@ -1,4 +1,5 @@
-# Instalador do Treino do Dia no Windows (computador como servidor; celular e navegador como espelho).
+# Instalador do Treino do Dia no Windows: o computador é o servidor; o site é publicado com HTTPS pelo
+# Tailscale Funnel (somente no computador). No celular, nada além do app de envio de saúde.
 # Uso (PowerShell, sem privilégios de administrador):
 #   irm https://raw.githubusercontent.com/Luizam0rim23/Academia/main/scripts/windows-instalar.ps1 | iex
 # Pode ser executado novamente para atualizar: preserva configuração (.env) e dados.
@@ -11,7 +12,7 @@ $Repo = 'Luizam0rim23/Academia'
 $Base = Join-Path $env:USERPROFILE 'TreinoDoDia'
 $App = Join-Path $Base 'app'
 $Porta = 3000
-$Maquina = $env:COMPUTERNAME.ToLower()
+$Tailscale = 'C:\Program Files\Tailscale\tailscale.exe'
 
 function Etapa([string]$texto) { Write-Host "`n== $texto" -ForegroundColor Cyan }
 function Atualizar-Path {
@@ -80,12 +81,11 @@ if (Test-Path -LiteralPath $EnvFile) {
   [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
   $token = -join ($bytes | ForEach-Object { $_.ToString('x2') })
   [IO.File]::WriteAllLines($EnvFile, [string[]]@(
-    'HOST=0.0.0.0',
+    'HOST=127.0.0.1',
     "PORT=$Porta",
     "BASE_URL=http://localhost:$Porta",
     "APP_PASSWORD=$senha",
     "HEALTH_WEBHOOK_TOKEN=$token",
-    "WEBHOOK_URL=http://${Maquina}:$Porta/api/saude/webhook",
     'RESUMO_DIR='
   ))
   Write-Host 'Configuração criada.'
@@ -100,48 +100,64 @@ if ($drive) {
   Write-Warning 'Google Drive para computador não encontrado. Instale-o (google.com/drive/download), faça login e execute este comando novamente para ativar o resumo para o Claude.'
 }
 
-Etapa '5/6 Início automático, firewall e Tailscale'
+Etapa '5/6 Início automático e Tailscale'
 $Log = Join-Path $App 'data\servidor.log'
 $alvo = 'cmd /c ""' + $Node + '" "' + (Join-Path $App 'server.js') + '" >> "' + $Log + '" 2>&1"'
 $Vbs = Join-Path ([Environment]::GetFolderPath('Startup')) 'TreinoDoDia.vbs'
 Set-Content -LiteralPath $Vbs -Encoding Unicode -Value ('CreateObject("WScript.Shell").Run "' + $alvo.Replace('"', '""') + '", 0, False')
 Write-Host 'Início automático configurado (ao entrar no Windows).'
 
-$regra = "Treino do Dia (porta $Porta)"
-if (-not (Get-NetFirewallRule -DisplayName $regra -ErrorAction SilentlyContinue)) {
-  Write-Host 'Liberando a porta no firewall apenas para a rede local e o Tailscale (confirme a janela do Windows).'
-  $cmd = "New-NetFirewallRule -DisplayName '$regra' -Direction Inbound -Protocol TCP -LocalPort $Porta -Action Allow -Profile Any -RemoteAddress 100.64.0.0/10,LocalSubnet | Out-Null"
-  try { Start-Process powershell -Verb RunAs -Wait -ArgumentList '-NoProfile', '-Command', $cmd }
-  catch { Write-Warning 'Regra de firewall não criada. Se o Windows perguntar sobre o Node.js, permita em redes privadas e públicas.' }
-}
-
-if (-not (Get-Command tailscale -ErrorAction SilentlyContinue) -and -not (Test-Path 'C:\Program Files\Tailscale\tailscale.exe')) {
+if (-not (Test-Path -LiteralPath $Tailscale)) {
   if (Get-Command winget -ErrorAction SilentlyContinue) {
-    Write-Host 'Instalando o Tailscale (rede privada para acessar de qualquer lugar)...'
+    Write-Host 'Instalando o Tailscale (publica o site com HTTPS, sem abrir portas no roteador)...'
     winget install -e --id Tailscale.Tailscale --accept-source-agreements --accept-package-agreements --silent
   } else {
     Start-Process 'https://tailscale.com/download/windows'
   }
 }
 
-Etapa '6/6 Iniciando'
+Etapa '6/6 Iniciando e publicando'
 Start-Process -FilePath 'wscript.exe' -ArgumentList ('"' + $Vbs + '"')
 Start-Sleep -Seconds 3
 $ok = $false
 try { $ok = (Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:$Porta/healthz" -TimeoutSec 5).StatusCode -eq 200 } catch { }
 if ($ok) { Write-Host 'Aplicativo em execução.' -ForegroundColor Green } else { Write-Warning "O aplicativo não respondeu. Veja o registro: $Log" }
+
+# Publicação com HTTPS pelo Tailscale Funnel (requer login no Tailscale neste computador).
+$Publico = $null
+$logado = $false
+if (Test-Path -LiteralPath $Tailscale) {
+  try { $estado = (& $Tailscale status --json 2>$null | Out-String | ConvertFrom-Json); $logado = $estado.BackendState -eq 'Running' } catch { }
+  if ($logado) {
+    $saida = (& $Tailscale funnel --bg $Porta 2>&1 | Out-String)
+    $link = [regex]::Match($saida, 'https://login\.tailscale\.com/\S+').Value
+    if ($link) {
+      Start-Process $link
+      Write-Warning 'Autorize o Funnel/HTTPS na página aberta do Tailscale e execute este comando de instalação novamente.'
+    } else {
+      $Publico = 'https://' + $estado.Self.DNSName.TrimEnd('.')
+      Definir-Variavel $EnvFile 'WEBHOOK_URL' "$Publico/api/saude/webhook"
+      # Reinicia para aplicar o endereço público exibido na página
+      Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like "*$App*server.js*" } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }
+      Start-Process -FilePath 'wscript.exe' -ArgumentList ('"' + $Vbs + '"')
+      Write-Host "Site publicado: $Publico" -ForegroundColor Green
+    }
+  } else {
+    Start-Process $Tailscale -ErrorAction SilentlyContinue
+    Write-Warning 'Entre no Tailscale (ícone ao lado do relógio do Windows) e execute este comando de instalação novamente para publicar o site.'
+  }
+}
 Start-Process "http://localhost:$Porta"
 
+$enderecoSite = if ($Publico) { $Publico } else { '(pendente: login no Tailscale e nova execução do instalador)' }
 Write-Host @"
 
-Instalação concluída.
-- Neste computador:          http://localhost:$Porta
-- No celular (via Tailscale): http://${Maquina}:$Porta
-- App de sono (destino):     http://${Maquina}:$Porta/api/saude/webhook  (segredo: botão Copiar segredo na página)
-- Atualizar:                 execute novamente o mesmo comando de instalação
-- Registro (log):            $Log
+Resumo
+- Neste computador:      http://localhost:$Porta
+- Celular e qualquer lugar (navegador): $enderecoSite
+- App de sono (destino): $enderecoSite/api/saude/webhook   (segredo: botão Copiar segredo na página)
+- Atualizar:             execute novamente o mesmo comando de instalação
+- Registro (log):        $Log
 
-Pendências:
-1. Abra o Tailscale neste computador e no celular e entre com a MESMA conta.
-2. Configure o Windows para não suspender quando ligado na tomada (Configurações > Sistema > Energia).
+Mantenha o computador ligado e sem suspensão na tomada (Configurações > Sistema > Energia).
 "@

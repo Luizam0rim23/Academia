@@ -154,33 +154,30 @@ Comandos disponíveis no Termux:
 
 Cópia de segurança: os dados ficam em `~/academia/data`. Para guardar uma cópia na memória do celular, executar uma vez `termux-setup-storage` e depois `cp -r ~/academia/data ~/storage/downloads/academia-backup`. Mesmo sem cópia, o histórico do Strava é recuperável (nova sincronização de 120 dias); perdem-se apenas configurações, marcações de foco e histórico de sono.
 
-### Opção E — Computador Windows como servidor, celular e navegador como espelho (gratuita)
+### Opção E — Computador Windows como servidor; celular apenas com o app de envio (gratuita)
 
 | Componente | Função |
 |---|---|
 | Computador Windows (ligado) | Executa o aplicativo, sincroniza o Strava e recebe os dados de saúde |
-| Tailscale (gratuito, no PC e no celular) | Rede privada: acesso ao site e envio do sono de qualquer lugar, sem expor nada na internet |
-| Celular | Apenas o app de envio (Life Dashboard Companion) e o navegador como espelho |
-| Google Drive para computador | Pasta `Treino do Dia` com `resumo-treino.txt` e `dados-treino.json`, atualizados automaticamente, que o Claude lê pelo conector do Google Drive |
+| Tailscale Funnel (somente no computador) | Publica o site com HTTPS em `https://NOME.SUA-REDE.ts.net`, sem abrir portas no roteador; acesso protegido pela senha do aplicativo |
+| Celular | Nenhuma instalação adicional: navegador para ver o site e o app de envio de saúde (Life Dashboard Companion) |
+| Google Drive para computador | Pasta `Treino do Dia` com `resumo-treino.txt` e `dados-treino.json`, que o Claude lê pelo conector do Google Drive |
 
 Passo a passo:
 
-1. No PowerShell do computador (sem administrador), executar:
+1. Instalar o **Google Drive para computador** e fazer login (para o resumo lido pelo Claude).
+2. No PowerShell do computador (sem administrador), executar:
    ```powershell
    irm https://raw.githubusercontent.com/Luizam0rim23/Academia/main/scripts/windows-instalar.ps1 | iex
    ```
-   O instalador instala o Node.js e o Tailscale (via winget), baixa o aplicativo, pede uma senha de acesso, configura o início automático, libera a porta 3000 no firewall apenas para a rede local e o Tailscale, detecta a pasta do Google Drive e abre o aplicativo.
-2. Entrar no Tailscale com a mesma conta no computador e no celular. Conferir no app do Tailscale o nome do computador (normalmente o nome do Windows em minúsculas).
-3. Migrar os dados do celular: na página do celular, **Configurações → Exportar dados (backup)**; no computador, **Importar backup** (na primeira tela ou em Configurações). A conexão com o Strava é transferida sem nova autorização.
-4. Desativar o servidor do celular (Termux), para evitar duas sincronizações com o Strava:
-   ```bash
-   treino parar; sed -i '/treino-do-dia/,+1d' ~/.bashrc; rm -f ~/.termux/boot/academia
-   ```
-5. No Life Dashboard Companion, alterar o destino para `http://NOME-DO-PC:3000/api/saude/webhook` e colar o novo segredo (botões **Copiar endereço** e **Copiar segredo** na página aberta pelo celular via Tailscale).
-6. No celular, abrir `http://NOME-DO-PC:3000`, entrar com a senha e adicionar à tela inicial.
+   O instalador instala Node.js e Tailscale (via winget), baixa o aplicativo, pede uma senha de acesso, configura o início automático e abre o aplicativo.
+3. Entrar no **Tailscale** no computador (ícone ao lado do relógio) e executar o comando do passo 2 novamente. Se o Tailscale abrir uma página pedindo para habilitar **HTTPS/Funnel**, aprovar e executar o comando mais uma vez. Ao final, o endereço público é exibido.
+4. No computador, abrir `http://localhost:3000`, informar Client ID e Client Secret do aplicativo Strava e conectar. (Alternativa: importar o backup exportado do celular.)
+5. No celular: abrir o endereço `https://….ts.net` no navegador, entrar com a senha e adicionar à tela inicial. No card **Sono e recuperação**, usar **Copiar endereço** e **Copiar segredo** e colar no destino do Life Dashboard Companion (endereço HTTPS: a opção de HTTP sem criptografia pode ser desativada).
+6. Se o Termux foi usado anteriormente, desinstalá-lo.
 7. Windows: Configurações → Sistema → Energia → não suspender quando ligado na tomada.
 
-Atualização: executar novamente o comando do passo 1 (configuração e dados são preservados).
+Atualização: executar novamente o comando do passo 2 (configuração e dados preservados).
 
 ## 5. Primeiro uso
 
